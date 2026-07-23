@@ -148,6 +148,7 @@ function classExtras(slug, l) {
 // ── Build ───────────────────────────────────────────────────────────────
 const catalog = { version: 1, weapons: {}, armor: {}, palico: {} };
 const counts = { weapons: 0, armor: 0, palico: 0 };
+let dummyWeapons = 0;
 
 // Weapons — catalog + per-class stats
 const weaponsRaw = J('weapons.json');
@@ -189,7 +190,11 @@ for (const cls of WEAPON_CLASSES) {
     } else {
       warn(`${cls.name}: id ${id} "${name}" has no stat tree`);
     }
-    entries.push([Number(id), name, rar[id] || 0, finalName, maxLevel]);
+    // Event weapons with no stats are MHXX-exclusive placeholders — label them
+    // "(DUMMY)" (matching how Kiranico already tags e.g. Twin Star Blades).
+    let displayName = name;
+    if (!tree && !/\(DUMMY\)/i.test(name)) { displayName = `${name} (DUMMY)`; dummyWeapons++; }
+    entries.push([Number(id), displayName, rar[id] || 0, finalName, maxLevel]);
   }
   catalog.weapons[cls.slug] = { label: cls.name, icon: cls.slug, entries };
   counts.weapons += entries.length;
@@ -454,7 +459,7 @@ if (doIcons) {
 
 // ── Report ──────────────────────────────────────────────────────────────
 console.log('\n── Counts ──');
-console.log(`  weapons: ${counts.weapons}`);
+console.log(`  weapons: ${counts.weapons} (${dummyWeapons} labelled DUMMY — no stats)`);
 console.log(`  armor:   ${counts.armor} (${armorFilledFromDb} stat blocks filled from DB)`);
 console.log(`  palico:  ${counts.palico}`);
 console.log(`  total:   ${counts.weapons + counts.armor + counts.palico}`);

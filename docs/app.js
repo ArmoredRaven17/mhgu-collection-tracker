@@ -74,7 +74,8 @@
   let matTab = "next";         // materials tab: "next" | "all"
   let openMaterials = null;    // resolved materials data for the currently-open item
 
-  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
+  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", dummy: true, rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
+  const isDummy = name => /\(DUMMY\)/i.test(name);
   const statsCache = new Map();
   const materialsCache = new Map();
 
@@ -247,6 +248,7 @@
     return current.entries.map(e => normalize(current, e));
   }
   function passesFilters(it) {
+    if (!filters.dummy && isDummy(it.name)) return false;
     if (filters.text && !filters.searchAll) {
       const q = filters.text.toLowerCase();
       if (!it.name.toLowerCase().includes(q) && !(it.final && String(it.final).toLowerCase().includes(q))) return false;
@@ -696,6 +698,7 @@
   document.querySelectorAll('input[name="ownedFilter"]').forEach(r =>
     r.addEventListener("change", function () { if (this.checked) { filters.owned = this.value; renderGrid(); } }));
   $("sortSelect").addEventListener("change", function () { filters.sort = this.value; renderGrid(); });
+  $("dummyFilter").addEventListener("change", function () { filters.dummy = this.checked; renderGrid(); });
   function updateSearchTitle() {
     if (filters.searchAll && filters.text) { $("catTitle").textContent = `Search: "${filters.text}"`; $("catCount").textContent = ""; }
     else if (current) { $("catTitle").textContent = current.label; updateProgress(); }
