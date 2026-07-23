@@ -32,6 +32,20 @@ acknowledgment of their fan-database work. If the maintainers of Kiranico
 object to this use, please open an issue and the affected data will be
 reviewed or removed.
 
+### Crafting materials — gatheringhallstudios / JoeLago
+
+The weapon and armor crafting-material lists in
+[docs/data/materials/](docs/data/materials/) are derived from the MHGU
+database (`mhgu.db`) bundled in
+[JoeLago/MHGUDB-iOS](https://github.com/JoeLago/MHGUDB-iOS) (MIT-licensed),
+which in turn is built on the community database from
+[gatheringhallstudios/MHGenDatabase](https://github.com/gatheringhallstudios/MHGenDatabase).
+Only the factual recipe data (which materials and quantities craft or
+upgrade each item) is extracted and re-emitted in this project's own JSON
+schema by [scripts/build-data.mjs](scripts/build-data.mjs); no source code,
+schema, or image assets from those projects are redistributed. Attribution
+is offered as courtesy acknowledgment of that community data work.
+
 ---
 
 ## Icons

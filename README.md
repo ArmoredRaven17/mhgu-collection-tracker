@@ -33,14 +33,22 @@ Then open http://localhost:8000/.
 ## Regenerating data
 
 Game data and icons are generated from the [mhgu-editor](https://github.com/redacted/mhgu-editor)
-repo's data files (which in turn derive from Kiranico):
+repo's data files (which in turn derive from Kiranico), plus crafting-material
+recipes from the MHGU database (`mhgu.db`):
 
 ```
 node scripts/build-data.mjs "C:/Coding Repos/mhgu-editor" --icons
 ```
 
-This rewrites `docs/data/catalog.js`, `docs/data/stats/*.json`, and (with
-`--icons`) copies the equipment icons into `docs/assets/icons/`.
+This rewrites `docs/data/catalog.js`, `docs/data/stats/*.json`,
+`docs/data/materials/*.json`, and (with `--icons`) copies the equipment icons
+into `docs/assets/icons/`.
+
+**Materials input:** the generator reads `data-src/mhgu.db` (gitignored — not
+redistributed). Download it from
+[JoeLago/MHGUDB-iOS](https://github.com/JoeLago/MHGUDB-iOS) at
+`MHGUDB/Assets/databases/mhgu.db` and place it there, or pass `--db <path>`.
+If the DB is absent the generator skips materials and builds everything else.
 
 ## Cache busting
 
