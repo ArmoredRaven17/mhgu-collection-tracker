@@ -14,12 +14,28 @@
   const SHARP_LABELS = ["Red", "Orange", "Yellow", "Green", "Blue", "White", "Purple"];
   const RES_NAMES = ["Fire", "Water", "Thndr", "Ice", "Drgn"];
 
+  // Same palette + monster icons as the MHGU Quest Randomizer, minus the
+  // Gypceros/Khezu gag theme. [displayName, hex] or [displayName, hex, iconName].
   const THEME_COLORS = [
-    ["Rathalos", "#8f2f2a"], ["Rathian", "#2f7a3f"], ["Zinogre", "#3a5f8f"],
-    ["Brachydios", "#2f6f6a"], ["Glavenus", "#a4552b"], ["Gore Magala", "#4a2f5f"],
-    ["Nargacuga", "#2b2f3a"], ["Kirin", "#5f6f8f"], ["Mizutsune", "#9a5f7a"],
-    ["Astalos", "#7a9a2f"], ["Nakarkos", "#6f2f4a"], ["Charcoal", "#1E2025"],
+    ["Teostra","#570B0B"], ["Rathalos","#b51717"],
+    ["Tetsucabra","#c65900"], ["Agnaktor","#fc933e"],
+    ["Tigrex","#C8A319"], ["Rajang","#f1d364"],
+    ["Deviljho","#0B570F"], ["Rathian","#3a9b3f"],
+    ["Astalos","#14503d"], ["Zinogre","#2dae85"],
+    ["Zamtrios","#005984"], ["Plesioth","#0080c1"],
+    ["Brachydios","#0B2757"], ["Lagiacrus","#0b3f97"],
+    ["G. Magala","#1F0B57","Gore Magala"], ["Nerscylla","#4e2fa2"],
+    ["Y. Garuga","#62008f","Yian Garuga"], ["Chameleos","#8e50ab"],
+    ["Mizutsune","#D84696"], ["Congalala","#ce79a8"],
+    ["Duramboros","#5a411f"], ["Diablos","#997c54"],
+    ["Barroth","#B57C45"], ["Bulldrome","#cfaa87"],
+    ["K. Daora","#505358","Kushala Daora"], ["Valstrax","#aeb5c1"],
+    ["Forbidden","#1E2025","Question Mark"],
   ];
+  const COLORS_HEX = Object.fromEntries(THEME_COLORS.map(([name, hex]) => [hex.toUpperCase(), name]));
+  const COLORS_ICON = Object.fromEntries(THEME_COLORS.filter(c => c[2]).map(([name, , icon]) => [name, icon]));
+  const FALLBACK_ICON = "assets/MonsterIcons/MHGU-Question_Mark_Icon.webp";
+  const monsterIcon = name => name ? "assets/MonsterIcons/MHGU-" + name.replace(/ /g, "_") + "_Icon.webp" : FALLBACK_ICON;
 
   // ── Category model ─────────────────────────────────────────────────────
   // Each category: {kind:'w'|'a'|'p', key, label, iconSlug, entries, statsFile}
@@ -609,13 +625,18 @@
     r.setProperty("--card", "rgba(255,255,255,0.05)");
     try { localStorage.setItem(THEME_KEY, hex); } catch (e) {}
     document.querySelectorAll(".swatch").forEach(s => s.classList.toggle("sel", s.dataset.hex === hex));
+    const titleIcon = document.querySelector(".title-icon");
+    if (titleIcon) {
+      const name = COLORS_HEX[hex.toUpperCase()];
+      titleIcon.src = name ? monsterIcon(COLORS_ICON[name] || name) : FALLBACK_ICON;
+    }
   }
   function buildSwatches() {
     const wrap = $("swatches"); wrap.innerHTML = "";
-    for (const [name, hex] of THEME_COLORS) {
+    for (const [name, hex, iconOverride] of THEME_COLORS) {
       const d = document.createElement("div");
       d.className = "swatch"; d.dataset.hex = hex; d.style.background = hex; d.title = name;
-      d.innerHTML = `<span>${name}</span>`;
+      d.innerHTML = `<img class="swatch-icon" src="${monsterIcon(iconOverride || name)}" alt=""><span>${name}</span>`;
       d.addEventListener("click", () => applyTheme(hex));
       wrap.appendChild(d);
     }
@@ -649,7 +670,7 @@
   buildSidebar();
   buildRarityFilters();
   buildSwatches();
-  let savedTheme = "#8f2f2a";
+  let savedTheme = "#1E2025";
   try { savedTheme = localStorage.getItem(THEME_KEY) || savedTheme; } catch (e) {}
   applyTheme(savedTheme);
   selectCategory(CATS[0]);
