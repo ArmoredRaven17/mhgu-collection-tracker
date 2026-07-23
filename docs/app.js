@@ -615,6 +615,7 @@
     const c = hexRgb(hex), r = document.documentElement.style;
     r.setProperty("--bg", cssRgb(darken(c, .70)));
     r.setProperty("--bg1", cssRgb(darken(c, .80)));
+    r.setProperty("--grid-bg", cssRgb(darken(c, .35)));   // grid backdrop: deep, hue-preserving tint
     r.setProperty("--bg2", cssRgb(darken(c, .95)));
     r.setProperty("--hover", cssRgb(darken(c, .30)));
     r.setProperty("--accent", cssRgb(darken(c, .7)));

@@ -6,7 +6,7 @@
 }
 /* Theme variables set at runtime from the chosen color (see app.js). */
 :root{
-  --bg:#3e3e3e; --bg1:#000; --bg2:#333; --hover:#2f2f2f; --accent:#7a7a7a; --accent-hover:#9a9a9a;
+  --bg:#3e3e3e; --bg1:#000; --grid-bg:#141018; --bg2:#333; --hover:#2f2f2f; --accent:#7a7a7a; --accent-hover:#9a9a9a;
   --text:#f3f3f3; --text-dim:#fff; --line:#ffffff1f; --card:#ffffff0d;
   --titlebar-overlay:rgba(0,0,0,0.18);
 }
@@ -53,7 +53,7 @@ body{
     url('assets/sidebar-background-texture1.png');
   background-size:auto 100%;background-position:left center;background-repeat:repeat;
 }
-.content{flex:1;min-width:0;overflow:hidden;background:var(--bg1)}
+.content{flex:1;min-width:0;overflow:hidden;background:var(--grid-bg)}
 .content-inner{display:flex;height:100%;min-width:0}
 .grid-column{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;padding:16px 16px 0}
 
