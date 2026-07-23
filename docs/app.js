@@ -73,6 +73,8 @@
   let sharpBand = 0;            // 0=base 1=+1 2=+2
   let matTab = "next";         // materials tab: "next" | "all"
   let openMaterials = null;    // resolved materials data for the currently-open item
+  let viewMode = "grid";       // "grid" | "list"
+  try { viewMode = localStorage.getItem("mhgu-tracker-view") || "grid"; } catch (e) {}
 
   const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", dummy: false, rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
   const isDummy = name => /\(DUMMY\)/i.test(name);
@@ -156,7 +158,7 @@
   function afterOwnedChange(c, id) {
     markDirty();
     updateProgress();
-    const cell = $("grid").querySelector(`.box-cell[data-id="${id}"][data-cat="${catId(c)}"]`);
+    const cell = $("grid").querySelector(`[data-id="${id}"][data-cat="${catId(c)}"]`);
     if (cell) updateCellOwned(cell, isOwned(c, id), ownedLevel(c, id), maxLevelOf(c, id));
     if (selectedId === id && current === c) refreshDetailOwned(c, id);
   }
@@ -289,27 +291,39 @@
     else items.sort((a, b) => (rarKey(a.rar) - rarKey(b.rar)) || (a.id - b.id));
     return items;
   }
+  function ownedBadgeHtml(it) {
+    const cid = `${it.kind}:${it.key}`;
+    const m = owned.get(cid);
+    if (!m.has(it.id)) return { on: false, html: "" };
+    const level = m.get(it.id) || 0;
+    const maxed = isMaxLevel(level, it.kind === "w" ? (maxLevels.get(cid).get(it.id) || 0) : 0);
+    const text = level > 0 ? (maxed ? "Max" : level) : "✓";
+    return { on: true, html: `<span class="cell-check${maxed ? " max" : ""}">${text}</span>` };
+  }
+  function cellHtml(it) {
+    const { on, html } = ownedBadgeHtml(it);
+    const rc = it.rar >= 1 ? ` rarity-${it.rar}` : "";
+    return `<div class="box-cell${rc}${on ? " owned" : ""}" data-id="${it.id}" data-cat="${it.kind}:${it.key}" title="${escapeHtml(it.name)}">
+      <img class="cell-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="" loading="lazy">${html}</div>`;
+  }
+  function listRowHtml(it) {
+    const { on, html } = ownedBadgeHtml(it);
+    const rc = it.rar >= 1 ? ` rarity-${it.rar}` : "";
+    const rarLabel = it.rar >= 11 ? "X" : (it.rar || "–");
+    return `<div class="list-row${rc}${on ? " owned" : ""}" data-id="${it.id}" data-cat="${it.kind}:${it.key}" title="${escapeHtml(it.name)}">
+      <img class="list-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="" loading="lazy">
+      <span class="list-name">${escapeHtml(it.name)}</span>
+      <span class="list-rar">R${rarLabel}</span>${html}</div>`;
+  }
   function renderGrid() {
     const grid = $("grid");
+    grid.classList.toggle("view-list", viewMode === "list");
     let items = currentItems().filter(passesFilters);
     sortItems(items);
     if (!items.length) { grid.innerHTML = ""; $("gridEmpty").classList.remove("hidden"); return; }
     $("gridEmpty").classList.add("hidden");
-    const html = items.map(it => {
-      const cid = `${it.kind}:${it.key}`;
-      const m = owned.get(cid);
-      const on = m.has(it.id), level = m.get(it.id) || 0;
-      const rc = it.rar >= 1 ? ` rarity-${it.rar}` : "";
-      let badge = "";
-      if (on) {
-        const maxed = isMaxLevel(level, it.kind === "w" ? (maxLevels.get(cid).get(it.id) || 0) : 0);
-        const text = level > 0 ? (maxed ? "Max" : level) : "✓";
-        badge = `<span class="cell-check${maxed ? " max" : ""}">${text}</span>`;
-      }
-      return `<div class="box-cell${rc}${on ? " owned" : ""}" data-id="${it.id}" data-cat="${cid}" title="${escapeHtml(it.name)}">
-        <img class="cell-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="" loading="lazy">${badge}</div>`;
-    }).join("");
-    grid.innerHTML = html;
+    const render = viewMode === "list" ? listRowHtml : cellHtml;
+    grid.innerHTML = items.map(render).join("");
   }
 
   function selectCategory(c) {
@@ -327,7 +341,7 @@
   //   first click on a cell = inspect (open detail, no change)
   //   clicking the already-open weapon = cycle ownership/level up to max
   $("grid").addEventListener("click", ev => {
-    const cell = ev.target.closest(".box-cell");
+    const cell = ev.target.closest(".box-cell, .list-row");
     if (!cell) return;
     const c = catByIdMap.get(cell.dataset.cat);
     const id = Number(cell.dataset.id);
@@ -336,7 +350,7 @@
     if (alreadyOpen && c.kind === "w") {
       advanceWeapon(c, id);   // repeat clicks on the open weapon level it up
     } else {
-      document.querySelectorAll(".box-cell.selected").forEach(x => x.classList.remove("selected"));
+      document.querySelectorAll(".box-cell.selected, .list-row.selected").forEach(x => x.classList.remove("selected"));
       cell.classList.add("selected");
       openDetail(c, id);      // first click = inspect only
     }
@@ -719,6 +733,13 @@
     r.addEventListener("change", function () { if (this.checked) { filters.owned = this.value; renderGrid(); } }));
   $("sortSelect").addEventListener("change", function () { filters.sort = this.value; renderGrid(); });
   $("dummyFilter").addEventListener("change", function () { filters.dummy = this.checked; renderGrid(); updateProgress(); });
+  function setView(v) {
+    viewMode = v === "list" ? "list" : "grid";
+    try { localStorage.setItem("mhgu-tracker-view", viewMode); } catch (e) {}
+    $("viewToggle").querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.view === viewMode));
+    renderGrid();
+  }
+  $("viewToggle").querySelectorAll("button").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
   function updateSearchTitle() {
     if (filters.searchAll && filters.text) { $("catTitle").textContent = `Search: "${filters.text}"`; $("catCount").textContent = ""; }
     else if (current) { $("catTitle").textContent = current.label; updateProgress(); }
@@ -808,6 +829,7 @@
   let savedTheme = "#1E2025";
   try { savedTheme = localStorage.getItem(THEME_KEY) || savedTheme; } catch (e) {}
   applyTheme(savedTheme);
+  $("viewToggle").querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.view === viewMode));
   selectCategory(CATS[0]);
   updateProgress();
   maybeOfferRestore();
