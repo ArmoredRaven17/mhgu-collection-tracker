@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MHGU Collection Tracker</title>
+<link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+<div id="app">
+
+  <!-- Title bar -->
+  <header class="titlebar titlebar-header">
+    <img class="title-icon" src="assets/icons/icon_great_sword.png" alt="">
+    <h1>MHGU Collection Tracker</h1>
+    <span id="overallProgress" class="progress-pill" title="Overall collection progress">0 / 0</span>
+    <button id="saveBtn"   class="btn tiny">Save <span id="dirtyDot" class="dirty-dot hidden">●</span></button>
+    <button id="saveAsBtn" class="btn tiny">Save As…</button>
+    <button id="openBtn"   class="btn tiny">Open…</button>
+    <input type="file" id="importFile" accept=".json,application/json" class="hidden">
+    <button id="themeBtn" class="icon-btn" title="Theme" aria-label="Theme">&#9881;</button>
+    <button id="aboutBtn" class="icon-btn" title="About / Attributions" aria-label="About">&#9432;</button>
+  </header>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <input type="search" id="searchInput" class="search-input" placeholder="Search equipment…" autocomplete="off">
+      <label class="chk search-all"><input type="checkbox" id="searchAll"><span>Search all categories</span></label>
+
+      <div class="panel filters-panel" data-open="true">
+        <button class="panel-head"><span>Filters</span><span class="chev">▾</span></button>
+        <div class="panel-body">
+          <div class="filter-group">
+            <div class="filter-label">Show</div>
+            <label class="chk"><input type="radio" name="ownedFilter" value="all" checked><span>All</span></label>
+            <label class="chk"><input type="radio" name="ownedFilter" value="owned"><span>Owned</span></label>
+            <label class="chk"><input type="radio" name="ownedFilter" value="missing"><span>Missing</span></label>
+          </div>
+          <div class="filter-group">
+            <div class="filter-label">Sort</div>
+            <select id="sortSelect" class="mini-select">
+              <option value="id">In-game order</option>
+              <option value="rarity">Rarity</option>
+              <option value="name">Name</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <div class="filter-label">Rarity</div>
+            <div id="rarityFilters" class="rarity-filters"></div>
+          </div>
+        </div>
+      </div>
+
+      <nav id="categoryTree" class="cat-tree"></nav>
+    </aside>
+
+    <!-- Content -->
+    <main class="content">
+      <div class="content-inner">
+        <div class="grid-column">
+          <div class="cat-header">
+            <div class="cat-header-top">
+              <h2 id="catTitle">—</h2>
+              <span id="catCount" class="cat-count"></span>
+            </div>
+            <div class="progress-bar"><div id="catProgressFill" class="progress-fill"></div></div>
+          </div>
+          <div id="grid" class="box-grid"></div>
+          <div id="gridEmpty" class="grid-empty hidden">No items match the current filters.</div>
+        </div>
+
+        <aside id="detailPanel" class="detail-panel">
+          <div class="detail-empty">Select an item to see its details.</div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- About / Attributions dialog -->
+<div id="aboutModal" class="modal hidden">
+  <div class="modal-card">
+    <h2>About / Attributions</h2>
+    <p>An unofficial, non-commercial fan tool for tracking your MHGU equipment collection. Built by the author with Claude (Claude Code).</p>
+    <p><strong>Equipment data:</strong> <a href="https://mhgu.kiranico.com" target="_blank" rel="noopener">Kiranico</a></p>
+    <p><strong>Equipment icons:</strong> <a href="https://monsterhunterwiki.org" target="_blank" rel="noopener">monsterhunterwiki.org</a> — licensed under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0</a>; adaptations shared under the same licence.</p>
+    <p><strong>Menu textures:</strong> Edited from the developer's in-game screenshots.</p>
+    <p class="muted">Monster Hunter content is owned by Capcom. This tool is not affiliated with or endorsed by Capcom.</p>
+    <div class="row end gap">
+      <button id="aboutClose" class="btn">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Theme dialog -->
+<div id="themeModal" class="modal hidden">
+  <div class="modal-card">
+    <h2>Theme</h2>
+    <div id="swatches" class="swatches"></div>
+    <div class="row end gap">
+      <button id="themeClose" class="btn">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Restore-session banner -->
+<div id="restoreBanner" class="restore-banner hidden">
+  <span>An unsaved collection from your last session was found.</span>
+  <button id="restoreYes" class="btn tiny">Restore</button>
+  <button id="restoreNo" class="btn tiny">Dismiss</button>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="data/catalog.js?v=1"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>
