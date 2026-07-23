@@ -74,8 +74,14 @@
   let matTab = "next";         // materials tab: "next" | "all"
   let openMaterials = null;    // resolved materials data for the currently-open item
 
-  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", dummy: true, rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
+  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", dummy: false, rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
   const isDummy = name => /\(DUMMY\)/i.test(name);
+  const dummyIds = new Map();   // "kind:key" -> Set(ids whose name is DUMMY)
+  for (const c of CATS) {
+    const s = new Set();
+    for (const e of c.entries) if (isDummy(e[1])) s.add(e[0]);
+    dummyIds.set(catId(c), s);
+  }
   const statsCache = new Map();
   const materialsCache = new Map();
 
@@ -166,22 +172,35 @@
   }
 
   // ── Progress ───────────────────────────────────────────────────────────
-  function catOwnedCount(c) { return owned.get(catId(c)).size; }
+  // Counts honour the DUMMY filter: when DUMMY are hidden they drop out of both
+  // numerator and denominator, but their owned state stays in `owned` (kept, not
+  // deleted) so it returns if the user re-includes them.
+  function catTotal(c) {
+    const all = c.entries.length;
+    return filters.dummy ? all : all - dummyIds.get(catId(c)).size;
+  }
+  function catOwnedCount(c) {
+    const m = owned.get(catId(c));
+    const dset = dummyIds.get(catId(c));
+    if (filters.dummy || !dset.size) return m.size;
+    let n = 0; for (const id of m.keys()) if (!dset.has(id)) n++;
+    return n;
+  }
   function updateProgress() {
     let total = 0, have = 0;
-    for (const c of CATS) { total += c.entries.length; have += catOwnedCount(c); }
+    for (const c of CATS) { total += catTotal(c); have += catOwnedCount(c); }
     $("overallProgress").textContent = `${fmtNum(have)} / ${fmtNum(total)} — ${total ? ((have / total) * 100).toFixed(1) : 0}%`;
     // sidebar fractions
     for (const c of CATS) {
       const el = document.querySelector(`.cat-row[data-cat="${catId(c)}"] .cat-frac`);
       if (el) {
-        const n = catOwnedCount(c), d = c.entries.length;
+        const n = catOwnedCount(c), d = catTotal(c);
         el.textContent = `${n}/${d}`;
         el.parentElement.classList.toggle("complete", n === d && d > 0);
       }
     }
     // current category header bar
-    const n = catOwnedCount(current), d = current.entries.length;
+    const n = catOwnedCount(current), d = catTotal(current);
     $("catProgressFill").style.width = d ? (n / d * 100) + "%" : "0";
     $("catCount").textContent = `${n} / ${d} owned`;
   }
@@ -553,7 +572,7 @@
   // ── Save / load ────────────────────────────────────────────────────────
   function serializeSave() {
     const out = { app: SAVE_APP, version: SAVE_VERSION, savedAt: new Date().toISOString(),
-      owned: { w: {}, a: {}, p: {} }, levels: { w: {}, a: {}, p: {} } };
+      showDummy: filters.dummy, owned: { w: {}, a: {}, p: {} }, levels: { w: {}, a: {}, p: {} } };
     for (const c of CATS) {
       const m = owned.get(catId(c));
       const ids = [...m.keys()].sort((a, b) => a - b);
@@ -622,6 +641,7 @@
       }
     }
     if (unknownCount) toast(`${unknownCount} unrecognized id(s) preserved for re-export.`);
+    if (typeof obj.showDummy === "boolean") { filters.dummy = obj.showDummy; $("dummyFilter").checked = obj.showDummy; }
     updateProgress();
     renderGrid();
     $("detailPanel").innerHTML = '<div class="detail-empty">Select an item to see its details.</div>';
@@ -698,7 +718,7 @@
   document.querySelectorAll('input[name="ownedFilter"]').forEach(r =>
     r.addEventListener("change", function () { if (this.checked) { filters.owned = this.value; renderGrid(); } }));
   $("sortSelect").addEventListener("change", function () { filters.sort = this.value; renderGrid(); });
-  $("dummyFilter").addEventListener("change", function () { filters.dummy = this.checked; renderGrid(); });
+  $("dummyFilter").addEventListener("change", function () { filters.dummy = this.checked; renderGrid(); updateProgress(); });
   function updateSearchTitle() {
     if (filters.searchAll && filters.text) { $("catTitle").textContent = `Search: "${filters.text}"`; $("catCount").textContent = ""; }
     else if (current) { $("catTitle").textContent = current.label; updateProgress(); }
