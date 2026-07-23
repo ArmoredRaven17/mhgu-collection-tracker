@@ -599,7 +599,7 @@
     let body;
     if (matTab === "create") {
       // Full from-scratch cost of this weapon alone (assumes you have the prerequisite).
-      body = `<div class="mat-step">Full build · LV 1-${max}</div>${matNameListHtml(sumTreeMats(data, id, max))}`;
+      body = `<div class="mat-step">Total Materials Required · LV 1-${max}</div>${matNameListHtml(sumTreeMats(data, id, max))}`;
     } else if (matTab === "upgrade") {
       // Full chain from a base weapon, min-leveling each predecessor to its branch point.
       const segs = buildChain(data, id, max);
