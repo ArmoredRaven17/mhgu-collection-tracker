@@ -216,6 +216,30 @@ const dropByType = {};
 for (const list of Object.values(nonCraft))
   for (const { equip_type, equip_id } of list) (dropByType[equip_type] ||= new Set()).add(equip_id);
 
+// Open the MHGU DB once (fills armor stats missing from Kiranico, and builds
+// materials below). Null if the DB isn't present — everything else still builds.
+let db = null;
+if (existsSync(DB_PATH)) {
+  const { DatabaseSync } = await import('node:sqlite');
+  db = new DatabaseSync(DB_PATH, { readOnly: true });
+}
+// DB armor stats by name (fallback for the ~104 pieces absent from armor_kiranico.json)
+const dbArmorStats = new Map();
+if (db) {
+  const skillsByItem = new Map();
+  for (const r of db.prepare('SELECT ist.item_id iid, s.name, ist.point_value pv FROM item_to_skill_tree ist JOIN skill_trees s ON s._id=ist.skill_tree_id').all()) {
+    let l = skillsByItem.get(r.iid); if (!l) skillsByItem.set(r.iid, l = []); l.push([r.name, r.pv]);
+  }
+  for (const r of db.prepare('SELECT a._id id, i.name, a.defense, a.max_defense, a.fire_res, a.water_res, a.thunder_res, a.ice_res, a.dragon_res, a.num_slots FROM armor a JOIN items i ON i._id=a._id').all())
+    if (!dbArmorStats.has(r.name)) dbArmorStats.set(r.name, {
+      def: [r.defense || 0, r.max_defense || 0],
+      res: [r.fire_res || 0, r.water_res || 0, r.thunder_res || 0, r.ice_res || 0, r.dragon_res || 0],
+      slots: r.num_slots || 0,
+      sk: skillsByItem.get(r.id) || [],
+    });
+}
+let armorFilledFromDb = 0;
+
 for (const slot of ARMOR_SLOTS) {
   const names = armorRaw[slot.name];           // id -> name
   const rar = armorRarity[slot.name] || {};
@@ -248,8 +272,11 @@ for (const slot of ARMOR_SLOTS) {
         slots: k.slots || 0,
         sk: (k.skills || []).map(s => [s.name, s.points]),
       };
+    } else if (dbArmorStats.has(name)) {
+      statById[id] = dbArmorStats.get(name);   // fallback: fill from mhgu.db
+      armorFilledFromDb++;
     } else {
-      warn(`armor ${slot.name}: no Kiranico stats for "${name}" (id ${id})`);
+      warn(`armor ${slot.name}: no stats for "${name}" (id ${id}) in Kiranico or DB`);
     }
   }
   catalog.armor[slot.key] = { label: slot.name, icon: slot.icon, entries, remap };
@@ -305,12 +332,10 @@ writeFileSync(catalogPath, 'window.CATALOG = ' + JSON.stringify(catalog) + ';\n'
 // created_item_id -> component_item_id (+ quantity). We attach the non-equipment
 // components to our catalog by name, per weapon level and per armor piece.
 const materialsReport = { weaponLevels: [0, 0], armorPieces: [0, 0], palicoWeapons: [0, 0], palicoArmor: [0, 0], skipped: false };
-if (!existsSync(DB_PATH)) {
+if (!db) {
   warn(`materials: DB not found at ${DB_PATH} — skipping crafting materials (run with --db <path>)`);
   materialsReport.skipped = true;
 } else {
-  const { DatabaseSync } = await import('node:sqlite');
-  const db = new DatabaseSync(DB_PATH, { readOnly: true });
   const EQUIP_TYPES = new Set(['Weapon', 'Armor', 'Palico Weapon', 'Palico Armor']);
   const itemType = new Map(db.prepare('SELECT _id, type FROM items').all().map(r => [r._id, r.type]));
   const itemName = new Map(db.prepare('SELECT _id, name FROM items').all().map(r => [r._id, r.name]));
@@ -404,8 +429,8 @@ if (!existsSync(DB_PATH)) {
     }
     writeFileSync(join(OUT_MATERIALS, 'palico_armor.json'), JSON.stringify(out));
   }
-  db.close();
 }
+if (db) db.close();
 
 // ── Icons ──────────────────────────────────────────────────────────────
 const ICON_SLUGS = [
@@ -430,7 +455,7 @@ if (doIcons) {
 // ── Report ──────────────────────────────────────────────────────────────
 console.log('\n── Counts ──');
 console.log(`  weapons: ${counts.weapons}`);
-console.log(`  armor:   ${counts.armor}`);
+console.log(`  armor:   ${counts.armor} (${armorFilledFromDb} stat blocks filled from DB)`);
 console.log(`  palico:  ${counts.palico}`);
 console.log(`  total:   ${counts.weapons + counts.armor + counts.palico}`);
 console.log('\n── Output sizes ──');
