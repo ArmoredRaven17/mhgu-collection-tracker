@@ -53,7 +53,7 @@ body{
     url('assets/sidebar-background-texture1.png');
   background-size:auto 100%;background-position:left center;background-repeat:repeat;
 }
-.content{flex:1;min-width:0;overflow:hidden;background:var(--grid-bg)}
+.content{flex:1;min-width:0;overflow:hidden;background:var(--bg1)}
 .content-inner{display:flex;height:100%;min-width:0}
 .grid-column{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;padding:16px 16px 0}
 
@@ -153,7 +153,7 @@ body{
 .grid-empty{padding:30px;text-align:center;opacity:.6}
 .box-cell{
   position:relative;height:100%;border-radius:5px;cursor:pointer;
-  background:#1c1c20;border:1px solid #2a2a30;
+  background:var(--grid-bg);border:1px solid #2a2a30;
   display:flex;align-items:center;justify-content:center;overflow:hidden;
 }
 .box-cell::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0}
