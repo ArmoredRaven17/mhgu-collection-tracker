@@ -168,11 +168,12 @@ for (const cls of WEAPON_CLASSES) {
   for (const id of sortIds(names)) {
     const name = names[id];
     const tree = treeByBase.get(name);
-    let finalName = 0;
+    let finalName = 0, maxLevel = 0;
     if (tree && tree.levels.length) {
       const last = tree.levels[tree.levels.length - 1];
       const lastName = fixMojibake(last.name);
       if (lastName && lastName !== name) finalName = lastName;
+      maxLevel = last.level;
       byId[id] = tree.levels.map(l => {
         const lv = { n: fixMojibake(l.name), lv: l.level, raw: l.raw, aff: l.affinity || 0, def: l.defense || 0, slots: l.slots, rar: l.rarity };
         const ele = normElements(l); if (ele.length) lv.ele = ele;
@@ -183,7 +184,7 @@ for (const cls of WEAPON_CLASSES) {
     } else {
       warn(`${cls.name}: id ${id} "${name}" has no stat tree`);
     }
-    entries.push([Number(id), name, rar[id] || 0, finalName]);
+    entries.push([Number(id), name, rar[id] || 0, finalName, maxLevel]);
   }
   catalog.weapons[cls.slug] = { label: cls.name, icon: cls.slug, entries };
   counts.weapons += entries.length;

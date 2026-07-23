@@ -52,6 +52,14 @@
   const catByIdMap = new Map(CATS.map(c => [catId(c), c]));
   const validIds = new Map();   // "kind:key" -> Set(ids)
   for (const c of CATS) validIds.set(catId(c), new Set(c.entries.map(e => e[0])));
+  const maxLevels = new Map();  // "kind:key" -> Map(id -> maxLevel); weapons only (entry[4])
+  for (const c of CATS) {
+    const m = new Map();
+    if (c.kind === "w") for (const e of c.entries) m.set(e[0], e[4] || 0);
+    maxLevels.set(catId(c), m);
+  }
+  const maxLevelOf = (c, id) => maxLevels.get(catId(c)).get(id) || 0;
+  const isMaxLevel = (level, max) => level > 0 && max > 0 && level >= max;
 
   // ── State ──────────────────────────────────────────────────────────────
   const owned = new Map();      // "kind:key" -> Map(id -> level); level 0 = owned, no level chosen
@@ -121,15 +129,17 @@
     markDirty();
     updateProgress();
     const cell = $("grid").querySelector(`.box-cell[data-id="${id}"][data-cat="${catId(c)}"]`);
-    if (cell) updateCellOwned(cell, isOwned(c, id), ownedLevel(c, id));
+    if (cell) updateCellOwned(cell, isOwned(c, id), ownedLevel(c, id), maxLevelOf(c, id));
     if (selectedId === id && current === c) refreshDetailOwned(c, id);
   }
-  function updateCellOwned(cell, on, level) {
+  function updateCellOwned(cell, on, level, max) {
     cell.classList.toggle("owned", on);
     let chk = cell.querySelector(".cell-check");
     if (on) {
       if (!chk) { chk = document.createElement("span"); chk.className = "cell-check"; cell.appendChild(chk); }
-      chk.textContent = level > 0 ? String(level) : "✓";
+      const maxed = isMaxLevel(level, max);
+      chk.textContent = level > 0 ? (maxed ? "Max" : String(level)) : "✓";
+      chk.classList.toggle("max", maxed);
     } else if (chk) chk.remove();
   }
 
@@ -244,11 +254,17 @@
     if (!items.length) { grid.innerHTML = ""; $("gridEmpty").classList.remove("hidden"); return; }
     $("gridEmpty").classList.add("hidden");
     const html = items.map(it => {
-      const m = owned.get(`${it.kind}:${it.key}`);
+      const cid = `${it.kind}:${it.key}`;
+      const m = owned.get(cid);
       const on = m.has(it.id), level = m.get(it.id) || 0;
       const rc = it.rar >= 1 ? ` rarity-${it.rar}` : "";
-      const badge = on ? `<span class="cell-check">${level > 0 ? level : "✓"}</span>` : "";
-      return `<div class="box-cell${rc}${on ? " owned" : ""}" data-id="${it.id}" data-cat="${it.kind}:${it.key}" title="${escapeHtml(it.name)}">
+      let badge = "";
+      if (on) {
+        const maxed = isMaxLevel(level, it.kind === "w" ? (maxLevels.get(cid).get(it.id) || 0) : 0);
+        const text = level > 0 ? (maxed ? "Max" : level) : "✓";
+        badge = `<span class="cell-check${maxed ? " max" : ""}">${text}</span>`;
+      }
+      return `<div class="box-cell${rc}${on ? " owned" : ""}" data-id="${it.id}" data-cat="${cid}" title="${escapeHtml(it.name)}">
         <img class="cell-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="" loading="lazy">${badge}</div>`;
     }).join("");
     grid.innerHTML = html;

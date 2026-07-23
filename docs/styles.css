@@ -166,6 +166,7 @@ body{
   position:absolute;top:1px;right:2px;z-index:2;font-size:11px;line-height:1;color:#7fffa8;
   text-shadow:0 0 2px #000,0 0 2px #000;
 }
+.cell-check.max{color:#ff2b2b;font-weight:700;font-size:10px;text-shadow:0 0 2px #000,0 0 3px #000}
 /* rarity fill overlays (from mhgu-editor App.css) */
 .box-cell.rarity-1::after  { background: rgba(224,224,224,.42); }
 .box-cell.rarity-2::after  { background: rgba(192,160,220,.42); }
