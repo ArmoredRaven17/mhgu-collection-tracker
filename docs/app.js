@@ -303,8 +303,8 @@
 
   // grid click:
   //   ctrl/meta = toggle owned (quick on/off, also the un-own escape)
-  //   weapons   = cycle ownership/level up to max (advanceWeapon), plus open detail
-  //   armor/palico = open detail
+  //   first click on a cell = inspect (open detail, no change)
+  //   clicking the already-open weapon = cycle ownership/level up to max
   $("grid").addEventListener("click", ev => {
     const cell = ev.target.closest(".box-cell");
     if (!cell) return;
@@ -312,11 +312,12 @@
     const id = Number(cell.dataset.id);
     if (ev.ctrlKey || ev.metaKey) { toggleOwned(c, id); return; }
     const alreadyOpen = selectedId === id && current === c;
-    if (c.kind === "w") advanceWeapon(c, id);   // click to level up
-    if (!alreadyOpen) {
+    if (alreadyOpen && c.kind === "w") {
+      advanceWeapon(c, id);   // repeat clicks on the open weapon level it up
+    } else {
       document.querySelectorAll(".box-cell.selected").forEach(x => x.classList.remove("selected"));
       cell.classList.add("selected");
-      openDetail(c, id);
+      openDetail(c, id);      // first click = inspect only
     }
   });
 
