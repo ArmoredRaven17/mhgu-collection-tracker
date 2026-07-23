@@ -91,6 +91,7 @@
   const escapeHtml = s => String(s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   const iconSuffix = r => r >= 11 ? "_rX" : r >= 1 ? "_r" + r : "";
   const iconPath = (slug, r) => `assets/icons/icon_${slug}${iconSuffix(r)}.png`;
+  const rarityLabel = r => r >= 11 ? "X" : String(r);   // display rarity 11 as "X" (logic keeps 11)
   const fmtNum = n => n.toLocaleString("en-US");
 
   function toast(msg, ms = 2600) {
@@ -266,7 +267,7 @@
     const wrap = $("rarityFilters"); wrap.innerHTML = "";
     for (let r = 1; r <= 11; r++) {
       const chip = document.createElement("div");
-      chip.className = "rarity-chip"; chip.dataset.r = r; chip.textContent = r;
+      chip.className = "rarity-chip"; chip.dataset.r = r; chip.textContent = rarityLabel(r);
       chip.addEventListener("click", () => {
         if (filters.rarity.has(r)) filters.rarity.delete(r); else filters.rarity.add(r);
         chip.classList.toggle("off", !filters.rarity.has(r));
@@ -334,7 +335,7 @@
   function listRowHtml(it) {
     const { on, html } = ownedBadgeHtml(it);
     const rc = it.rar >= 1 ? ` rarity-${it.rar}` : "";
-    const rarLabel = it.rar >= 11 ? "X" : (it.rar || "–");
+    const rarLabel = it.rar >= 1 ? rarityLabel(it.rar) : "–";
     return `<div class="list-row${rc}${on ? " owned" : ""}" data-id="${it.id}" data-cat="${it.kind}:${it.key}" title="${escapeHtml(it.name)}">
       <img class="list-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="" loading="lazy">
       <span class="list-name">${escapeHtml(it.name)}</span>
@@ -409,12 +410,12 @@
     let sub = "";
     if (c.kind === "a") {
       const femaleName = entry[6];
-      const parts = [`Rarity ${entry[2] || "?"}`];
+      const parts = [`Rarity ${entry[2] ? rarityLabel(entry[2]) : "?"}`];
       if (entry[4]) parts.push(escapeHtml(entry[4]) + " set");
       sub = parts.join(" · ");
       if (femaleName) title = `${escapeHtml(name)} <span style="opacity:.6">/</span> ${escapeHtml(femaleName)}`;
     } else {
-      sub = `Rarity ${entry[2] || "?"}`;
+      sub = `Rarity ${entry[2] ? rarityLabel(entry[2]) : "?"}`;
     }
     return { title, sub, rar: entry[2] || 0 };
   }
