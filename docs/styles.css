@@ -199,9 +199,15 @@ body{
 .stat-row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:13px;border-bottom:1px solid #ffffff0d}
 .stat-row .k{opacity:.7}
 .stat-row .v{font-variant-numeric:tabular-nums;text-align:right}
+.lvl-hint{font-size:11px;opacity:.6;margin:2px 0 6px}
 .lvl-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
 .lvl-table th{text-align:left;opacity:.6;font-weight:600;padding:2px 6px 4px 0;font-size:11px}
 .lvl-table td{padding:3px 6px 3px 0;vertical-align:middle;border-top:1px solid #ffffff0d}
+.lvl-table th.lvl-own,.lvl-table td.lvl-own{width:14px;padding-right:4px;color:#7fffa8;text-align:center}
+.lvl-table tbody tr.lvl-row{cursor:pointer}
+.lvl-table tbody tr.lvl-row:hover td{background:#ffffff10}
+.lvl-table tbody tr.lvl-row.selected td{background:color-mix(in srgb,var(--accent) 42%,transparent)}
+.lvl-table tbody tr.lvl-row.selected .lvl-own::after{content:"✓"}
 .sharp-bar{display:flex;height:8px;border-radius:2px;overflow:hidden;min-width:70px;background:#000}
 .sharp-seg{height:100%}
 .sharp-toggle{display:flex;gap:4px;margin:6px 0}

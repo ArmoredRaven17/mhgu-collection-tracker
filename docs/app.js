@@ -6,7 +6,7 @@
   if (!C) { document.body.innerHTML = "<p style='padding:20px'>Failed to load catalog data.</p>"; return; }
 
   const SAVE_APP = "mhgu-collection-tracker";
-  const SAVE_VERSION = 1;
+  const SAVE_VERSION = 2;   // v2 adds per-item upgrade levels
   const AUTOSAVE_KEY = "mhgu-tracker-autosave";
   const THEME_KEY = "mhgu-tracker-theme";
 
@@ -38,16 +38,17 @@
   for (const c of CATS) validIds.set(catId(c), new Set(c.entries.map(e => e[0])));
 
   // ── State ──────────────────────────────────────────────────────────────
-  const owned = new Map();      // "kind:key" -> Set(ids)
-  for (const c of CATS) owned.set(catId(c), new Set());
+  const owned = new Map();      // "kind:key" -> Map(id -> level); level 0 = owned, no level chosen
+  for (const c of CATS) owned.set(catId(c), new Map());
   const unknownOwned = { w: {}, a: {}, p: {} };   // preserved unknown ids, re-exported verbatim
+  const unknownLevels = { w: {}, a: {}, p: {} };  // preserved levels for unknown ids
   let dirty = false;
   let fileHandle = null;
   let current = CATS[0];
   let selectedId = null;
   let sharpBand = 0;            // 0=base 1=+1 2=+2
 
-  const filters = { text: "", searchAll: false, owned: "all", sort: "id", rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
+  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
   const statsCache = new Map();
 
   // ── Helpers ────────────────────────────────────────────────────────────
@@ -86,22 +87,34 @@
   }
 
   // ── Owned toggling ─────────────────────────────────────────────────────
-  function isOwned(c, id) { return owned.get(catId(c)).has(id); }
+  const ownedMapOf = c => owned.get(catId(c));
+  function isOwned(c, id) { return ownedMapOf(c).has(id); }
+  function ownedLevel(c, id) { return ownedMapOf(c).get(id) || 0; }   // 0 = owned but no level set
   function toggleOwned(c, id) {
-    const set = owned.get(catId(c));
-    if (set.has(id)) set.delete(id); else set.add(id);
+    const m = ownedMapOf(c);
+    if (m.has(id)) m.delete(id); else m.set(id, 0);
+    afterOwnedChange(c, id);
+  }
+  // Record a specific upgrade level (weapons). Clicking the already-selected level un-owns it.
+  function setLevel(c, id, lv) {
+    const m = ownedMapOf(c);
+    if (m.has(id) && m.get(id) === lv) m.delete(id); else m.set(id, lv);
+    afterOwnedChange(c, id);
+  }
+  function afterOwnedChange(c, id) {
     markDirty();
     updateProgress();
-    // update the cell + detail button if visible
     const cell = $("grid").querySelector(`.box-cell[data-id="${id}"][data-cat="${catId(c)}"]`);
-    if (cell) updateCellOwned(cell, set.has(id));
-    if (selectedId === id && current === c) updateDetailOwnedBtn(set.has(id));
+    if (cell) updateCellOwned(cell, isOwned(c, id), ownedLevel(c, id));
+    if (selectedId === id && current === c) refreshDetailOwned(c, id);
   }
-  function updateCellOwned(cell, on) {
+  function updateCellOwned(cell, on, level) {
     cell.classList.toggle("owned", on);
     let chk = cell.querySelector(".cell-check");
-    if (on && !chk) { chk = document.createElement("span"); chk.className = "cell-check"; chk.textContent = "✓"; cell.appendChild(chk); }
-    else if (!on && chk) chk.remove();
+    if (on) {
+      if (!chk) { chk = document.createElement("span"); chk.className = "cell-check"; cell.appendChild(chk); }
+      chk.textContent = level > 0 ? String(level) : "✓";
+    } else if (chk) chk.remove();
   }
 
   // ── Progress ───────────────────────────────────────────────────────────
@@ -203,14 +216,11 @@
   // within a class. Unknown rarity (0) sorts last; ties keep in-game (id) order.
   const rarKey = r => (r === 0 ? 99 : r);
   function sortItems(items) {
-    const s = filters.sort;
-    if (s === "name") items.sort((a, b) => a.name.localeCompare(b.name));
-    else if (s === "rarity") items.sort((a, b) => (rarKey(a.rar) - rarKey(b.rar)) || (a.id - b.id));
-    else items.sort((a, b) => a.id - b.id);
+    // Rarity (default) also serves as the in-game ordering (rarity asc, id tie-break).
+    if (filters.sort === "name") items.sort((a, b) => a.name.localeCompare(b.name));
+    else items.sort((a, b) => (rarKey(a.rar) - rarKey(b.rar)) || (a.id - b.id));
     return items;
   }
-  // Weapons default to rarity order (1 → X); armor/palico keep in-game (id) order.
-  const defaultSortFor = kind => kind === "w" ? "rarity" : "id";
   function renderGrid() {
     const grid = $("grid");
     let items = currentItems().filter(passesFilters);
@@ -218,10 +228,12 @@
     if (!items.length) { grid.innerHTML = ""; $("gridEmpty").classList.remove("hidden"); return; }
     $("gridEmpty").classList.add("hidden");
     const html = items.map(it => {
-      const on = owned.get(`${it.kind}:${it.key}`).has(it.id);
+      const m = owned.get(`${it.kind}:${it.key}`);
+      const on = m.has(it.id), level = m.get(it.id) || 0;
       const rc = it.rar >= 1 ? ` rarity-${it.rar}` : "";
+      const badge = on ? `<span class="cell-check">${level > 0 ? level : "✓"}</span>` : "";
       return `<div class="box-cell${rc}${on ? " owned" : ""}" data-id="${it.id}" data-cat="${it.kind}:${it.key}" title="${escapeHtml(it.name)}">
-        <img class="cell-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="" loading="lazy">${on ? '<span class="cell-check">✓</span>' : ""}</div>`;
+        <img class="cell-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="" loading="lazy">${badge}</div>`;
     }).join("");
     grid.innerHTML = html;
   }
@@ -229,8 +241,6 @@
   function selectCategory(c) {
     current = c;
     selectedId = null;
-    filters.sort = defaultSortFor(c.kind);   // weapons open rarity-sorted, others by in-game id
-    $("sortSelect").value = filters.sort;
     document.querySelectorAll(".cat-row").forEach(r => r.classList.toggle("active", r.dataset.cat === catId(c)));
     $("catTitle").textContent = c.label;
     renderGrid();
@@ -251,10 +261,22 @@
   });
 
   // ── Detail panel ───────────────────────────────────────────────────────
-  function updateDetailOwnedBtn(on) {
-    const btn = $("detailOwnedBtn"); if (!btn) return;
-    btn.classList.toggle("is-owned", on);
-    btn.textContent = on ? "✓ Owned" : "Mark as owned";
+  function ownedBtnLabel(c, id) {
+    if (!isOwned(c, id)) return "Mark as owned";
+    const lv = ownedLevel(c, id);
+    return lv > 0 ? `✓ Owned — LV ${lv}` : "✓ Owned";
+  }
+  // Sync the owned button + level-row highlight for the currently-open item.
+  function refreshDetailOwned(c, id) {
+    const btn = $("detailOwnedBtn");
+    if (btn) { btn.classList.toggle("is-owned", isOwned(c, id)); btn.textContent = ownedBtnLabel(c, id); }
+    const lv = ownedLevel(c, id), on = isOwned(c, id);
+    document.querySelectorAll("#detailStats .lvl-row").forEach(tr =>
+      tr.classList.toggle("selected", on && Number(tr.dataset.lv) === lv));
+  }
+  function wireLevelRows(c, id) {
+    document.querySelectorAll("#detailStats .lvl-row").forEach(tr =>
+      tr.addEventListener("click", () => setLevel(c, id, Number(tr.dataset.lv))));
   }
   function detailHead(c, entry) {
     const name = entry[1];
@@ -286,7 +308,7 @@
         <img class="detail-icon" src="${iconPath(c.iconSlug, rar)}" alt="">
         <div><div class="detail-title">${title}</div><div class="detail-sub">${sub}</div></div>
       </div>
-      <button id="detailOwnedBtn" class="detail-owned-btn ${on ? "is-owned" : ""}">${on ? "✓ Owned" : "Mark as owned"}</button>
+      <button id="detailOwnedBtn" class="detail-owned-btn ${on ? "is-owned" : ""}">${ownedBtnLabel(c, id)}</button>
       <div id="detailStats"><div class="detail-note">Loading stats…</div></div>`;
     $("detailOwnedBtn").addEventListener("click", () => toggleOwned(c, id));
 
@@ -294,10 +316,11 @@
       const data = await loadStats(c.statsFile);
       if (selectedId !== id) return;   // selection changed while loading
       const body = $("detailStats");
-      if (c.kind === "w") body.innerHTML = renderWeaponDetail(data, id);
+      if (c.kind === "w") { body.innerHTML = renderWeaponDetail(data, id); wireLevelRows(c, id); }
       else if (c.kind === "a") body.innerHTML = renderArmorDetail(data, id);
       else body.innerHTML = renderPalicoDetail(c.key, data, id);
       wireSharpToggle();
+      refreshDetailOwned(c, id);   // highlight the owned level row, if any
     } catch (e) {
       $("detailStats").innerHTML = '<div class="detail-note">Stats unavailable for this item.</div>';
     }
@@ -321,7 +344,8 @@
     const anySharp = levels.some(l => l.sh);
     const rows = levels.map(l => {
       const sharp = l.sh ? sharpBarHtml(l.sh, sharpBand) : "";
-      return `<tr>
+      return `<tr class="lvl-row" data-lv="${l.lv}">
+        <td class="lvl-own"></td>
         <td>${l.lv}</td><td>${l.raw}</td><td>${l.aff ? (l.aff > 0 ? "+" : "") + l.aff + "%" : "—"}</td>
         <td>${eleText(l.ele)}</td><td>${escapeHtml(l.slots || "")}</td>
         ${anySharp ? `<td>${sharp}</td>` : ""}</tr>`;
@@ -331,8 +355,9 @@
       <button data-band="1" class="${sharpBand===1?"active":""}">+1</button>
       <button data-band="2" class="${sharpBand===2?"active":""}">+2</button></div>` : "";
     const extras = renderExtras(levels[levels.length - 1].x);
-    return `<div class="detail-section-title">Upgrade levels</div>${toggle}
-      <table class="lvl-table"><thead><tr><th>Lv</th><th>Raw</th><th>Aff</th><th>Element</th><th>Slots</th>${anySharp ? "<th>Sharp</th>" : ""}</tr></thead>
+    return `<div class="detail-section-title">Upgrade levels</div>
+      <div class="lvl-hint">Click the level you currently have.</div>${toggle}
+      <table class="lvl-table"><thead><tr><th class="lvl-own"></th><th>Lv</th><th>Raw</th><th>Aff</th><th>Element</th><th>Slots</th>${anySharp ? "<th>Sharp</th>" : ""}</tr></thead>
       <tbody>${rows}</tbody></table>${extras}`;
   }
   function renderExtras(x) {
@@ -398,12 +423,17 @@
 
   // ── Save / load ────────────────────────────────────────────────────────
   function serializeSave() {
-    const out = { app: SAVE_APP, version: SAVE_VERSION, savedAt: new Date().toISOString(), owned: { w: {}, a: {}, p: {} } };
+    const out = { app: SAVE_APP, version: SAVE_VERSION, savedAt: new Date().toISOString(),
+      owned: { w: {}, a: {}, p: {} }, levels: { w: {}, a: {}, p: {} } };
     for (const c of CATS) {
-      const arr = [...owned.get(catId(c))].sort((a, b) => a - b);
-      const bucket = out.owned[c.kind];
+      const m = owned.get(catId(c));
+      const ids = [...m.keys()].sort((a, b) => a - b);
       const unk = (unknownOwned[c.kind] || {})[c.key] || [];
-      bucket[c.key] = unk.length ? arr.concat(unk).sort((a, b) => a - b) : arr;
+      out.owned[c.kind][c.key] = unk.length ? ids.concat(unk).sort((a, b) => a - b) : ids;
+      const lv = {};
+      m.forEach((level, id) => { if (level > 0) lv[id] = level; });
+      Object.assign(lv, (unknownLevels[c.kind] || {})[c.key] || {});
+      if (Object.keys(lv).length) out.levels[c.kind][c.key] = lv;
     }
     return out;
   }
@@ -419,23 +449,46 @@
       for (const arr of Object.values(bucket))
         if (!Array.isArray(arr) || arr.some(x => !Number.isInteger(x))) return "Collection data is malformed.";
     }
+    if (obj.levels != null && typeof obj.levels !== "object") return "Collection data is malformed.";
     return null;
   }
   function applySave(obj) {
     for (const c of CATS) owned.get(catId(c)).clear();
     unknownOwned.w = {}; unknownOwned.a = {}; unknownOwned.p = {};
+    unknownLevels.w = {}; unknownLevels.a = {}; unknownLevels.p = {};
     let unknownCount = 0;
+    const remapId = (kind, key, id) => {
+      if (kind === "a") { const rm = (C.armor[key] && C.armor[key].remap) || {}; if (rm[id] != null) return rm[id]; }
+      return id;
+    };
     for (const kind of ["w", "a", "p"]) {
       const bucket = obj.owned[kind]; if (!bucket) continue;
       for (const [key, ids] of Object.entries(bucket)) {
         const cid = `${kind}:${key}`;
         const valid = validIds.get(cid);
-        const set = owned.get(cid);
-        const remap = kind === "a" ? (C.armor[key] && C.armor[key].remap) || {} : null;
+        const m = owned.get(cid);
         for (let id of ids) {
-          if (remap && remap[id] != null) id = remap[id];   // female → canonical
-          if (valid && valid.has(id)) { set.add(id); }
+          id = remapId(kind, key, id);   // female → canonical
+          if (valid && valid.has(id)) { if (!m.has(id)) m.set(id, 0); }
           else { (unknownOwned[kind][key] ||= []).push(id); unknownCount++; }
+        }
+      }
+    }
+    // Levels (v2+): a level implies ownership at that level.
+    if (obj.levels && typeof obj.levels === "object") {
+      for (const kind of ["w", "a", "p"]) {
+        const bucket = obj.levels[kind]; if (!bucket || typeof bucket !== "object") continue;
+        for (const [key, map] of Object.entries(bucket)) {
+          if (!map || typeof map !== "object") continue;
+          const cid = `${kind}:${key}`;
+          const valid = validIds.get(cid);
+          const m = owned.get(cid);
+          for (let [rawId, rawLv] of Object.entries(map)) {
+            const id = remapId(kind, key, Number(rawId)), lv = Number(rawLv);
+            if (!Number.isInteger(lv) || lv <= 0) continue;
+            if (valid && valid.has(id)) m.set(id, lv);
+            else ((unknownLevels[kind][key] ||= {}))[id] = lv;
+          }
         }
       }
     }
