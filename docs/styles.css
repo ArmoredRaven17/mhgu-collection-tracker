@@ -128,7 +128,7 @@ body{
 .cat-row:hover{background:#ffffff12}
 .cat-row.active{background:color-mix(in srgb,var(--accent) 55%,transparent)}
 .cat-row img{width:20px;height:20px;object-fit:contain;flex-shrink:0}
-.cat-row .cat-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cat-row .cat-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .25s}
 .cat-row .cat-frac{font-size:11px;opacity:.75;font-variant-numeric:tabular-nums}
 .cat-row.complete .cat-frac{color:#7fdc7f;opacity:1}
 
