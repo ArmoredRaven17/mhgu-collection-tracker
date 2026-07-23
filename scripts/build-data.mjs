@@ -357,11 +357,11 @@ if (!db) {
     let list = recipeOf.get(r.cid); if (!list) recipeOf.set(r.cid, list = new Map());
     list.set(name, (list.get(name) || 0) + r.q);
   }
-  // weapon item lookup: "<wtype> <name>" -> _id
+  // weapon item lookup: "<wtype><name>" -> _id
   const wtypeOf = lbl => lbl.replace(/ & /g, ' and ');
   const weaponItemId = new Map();
   for (const r of db.prepare('SELECT w._id id, w.wtype, i.name FROM weapons w JOIN items i ON i._id=w._id').all())
-    weaponItemId.set(`${r.wtype} ${r.name}`, r.id);
+    weaponItemId.set(`${r.wtype} ${r.name}`, r.id);
   const armorItemId = new Map();
   for (const r of db.prepare('SELECT a._id id, i.name FROM armor a JOIN items i ON i._id=a._id').all())
     if (!armorItemId.has(r.name)) armorItemId.set(r.name, r.id);
@@ -371,6 +371,8 @@ if (!db) {
   const palicoArmorItemId = new Map();   // helms + mails share one table, matched by name
   for (const r of db.prepare('SELECT p._id id, i.name FROM palico_armor p JOIN items i ON i._id=p._id').all())
     if (!palicoArmorItemId.has(r.name)) palicoArmorItemId.set(r.name, r.id);
+  // weapon upgrade lineage: db item id -> parent db item id (0 = root, made from raw mats)
+  const parentById = new Map(db.prepare('SELECT _id, parent_id FROM weapons').all().map(r => [r._id, r.parent_id]));
 
   // Intern material names per output file to keep them compact.
   const makeInterner = () => { const mats = [], idx = new Map(); return {
@@ -386,19 +388,32 @@ if (!db) {
     const stats = JSON.parse(readFileSync(join(OUT_STATS, cls.slug + '.json'), 'utf8')).byId;
     const intern = makeInterner();
     const byId = {};
+    const idToTree = new Map();   // db item id -> [catalog tree id, level]
     for (const entry of catalog.weapons[cls.slug].entries) {
       const id = entry[0], levels = stats[String(id)];
       if (!levels) continue;
       const perLevel = {};
       for (const l of levels) {
         materialsReport.weaponLevels[1]++;
-        const gid = weaponItemId.get(`${wtype} ${l.n} ${l.lv}`);
+        const gid = weaponItemId.get(`${wtype} ${l.n} ${l.lv}`);
         const pairs = gid != null ? listToPairs(intern, gid) : null;
         if (pairs) { perLevel[l.lv] = pairs; materialsReport.weaponLevels[0]++; }
       }
       if (Object.keys(perLevel).length) byId[id] = perLevel;
     }
-    writeFileSync(join(OUT_MATERIALS, cls.slug + '.json'), JSON.stringify({ mats: intern.mats, byId }));
+    // Lineage: db item id -> [treeId, level]; then parents[treeId] = [parentTreeId, branchLevel]
+    for (const entry of catalog.weapons[cls.slug].entries) {
+      const levels = stats[String(entry[0])]; if (!levels) continue;
+      for (const l of levels) { const gid = weaponItemId.get(`${wtype} ${l.n} ${l.lv}`); if (gid != null) idToTree.set(gid, [entry[0], l.lv]); }
+    }
+    const parents = {};
+    for (const entry of catalog.weapons[cls.slug].entries) {
+      const levels = stats[String(entry[0])]; if (!levels) continue;
+      const lvl1 = weaponItemId.get(`${wtype} ${levels[0].n} ${levels[0].lv}`);
+      const pid = lvl1 != null ? parentById.get(lvl1) : 0;
+      if (pid && idToTree.has(pid)) parents[entry[0]] = idToTree.get(pid);
+    }
+    writeFileSync(join(OUT_MATERIALS, cls.slug + '.json'), JSON.stringify({ mats: intern.mats, byId, parents }));
   }
   // Armor — per piece (Create recipe)
   for (const slot of ARMOR_SLOTS) {
