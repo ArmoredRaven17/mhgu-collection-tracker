@@ -188,18 +188,43 @@
     let n = 0; for (const id of m.keys()) if (!dset.has(id)) n++;
     return n;
   }
+  // Count owned entries that are "maxed": weapons at their top level; entries with
+  // no levels (armor, palico, no-stat weapons) count once owned. Honours DUMMY filter.
+  function catMaxedCount(c) {
+    const m = owned.get(catId(c));
+    const dset = dummyIds.get(catId(c));
+    let n = 0;
+    for (const [id, lv] of m) {
+      if (!filters.dummy && dset.has(id)) continue;
+      const max = maxLevelOf(c, id);
+      if (max === 0 || lv >= max) n++;
+    }
+    return n;
+  }
+  // Rarity tier from completion: R1..R9 in 10% owned bands, R10 at 100% owned,
+  // R11 (X) at 100% maxed.
+  const RARITY_TEXT = ["", "#e0e0e0", "#c0a0dc", "#d4cc00", "#d87090", "#48b448",
+    "#3888e8", "#d43838", "#20b8b8", "#e88030", "#ff50a0", "#cc00ff"];
+  function categoryTier(c) {
+    const total = catTotal(c);
+    if (total === 0) return 1;
+    if (catMaxedCount(c) >= total) return 11;
+    if (catOwnedCount(c) >= total) return 10;
+    return Math.min(9, Math.floor(catOwnedCount(c) / total * 10) + 1);
+  }
   function updateProgress() {
     let total = 0, have = 0;
     for (const c of CATS) { total += catTotal(c); have += catOwnedCount(c); }
     $("overallProgress").textContent = `${fmtNum(have)} / ${fmtNum(total)} — ${total ? ((have / total) * 100).toFixed(1) : 0}%`;
-    // sidebar fractions
+    // sidebar fractions + tier-based icon / text colour
     for (const c of CATS) {
-      const el = document.querySelector(`.cat-row[data-cat="${catId(c)}"] .cat-frac`);
-      if (el) {
-        const n = catOwnedCount(c), d = catTotal(c);
-        el.textContent = `${n}/${d}`;
-        el.parentElement.classList.toggle("complete", n === d && d > 0);
-      }
+      const row = document.querySelector(`.cat-row[data-cat="${catId(c)}"]`);
+      if (!row) continue;
+      const n = catOwnedCount(c), d = catTotal(c), tier = categoryTier(c);
+      row.querySelector(".cat-frac").textContent = `${n}/${d}`;
+      row.classList.toggle("complete", n === d && d > 0);
+      const img = row.querySelector("img"); if (img) img.src = iconPath(c.iconSlug, tier);
+      const nameEl = row.querySelector(".cat-name"); if (nameEl) nameEl.style.color = RARITY_TEXT[tier];
     }
     // current category header bar
     const n = catOwnedCount(current), d = catTotal(current);
