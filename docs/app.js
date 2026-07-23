@@ -134,6 +134,18 @@
     if (m.has(id) && m.get(id) === lv) m.delete(id); else m.set(id, lv);
     afterOwnedChange(c, id);
   }
+  // Quick-level a weapon by clicking its cell: unowned → owned → LV1 → … → max, then stop.
+  function advanceWeapon(c, id) {
+    const m = ownedMapOf(c), max = maxLevelOf(c, id);
+    if (!m.has(id)) m.set(id, 0);                 // first click: mark owned
+    else {
+      const cur = m.get(id);
+      if (cur === 0) { if (max < 1) return; m.set(id, 1); }   // owned → LV1 (no-op if no levels)
+      else if (max > 0 && cur < max) m.set(id, cur + 1);      // LVn → LVn+1
+      else return;                                            // already at max → stop
+    }
+    afterOwnedChange(c, id);
+  }
   function afterOwnedChange(c, id) {
     markDirty();
     updateProgress();
@@ -289,16 +301,23 @@
     $("detailPanel").innerHTML = '<div class="detail-empty">Select an item to see its details.</div>';
   }
 
-  // grid click: ctrl/meta = toggle owned; plain = open detail
+  // grid click:
+  //   ctrl/meta = toggle owned (quick on/off, also the un-own escape)
+  //   weapons   = cycle ownership/level up to max (advanceWeapon), plus open detail
+  //   armor/palico = open detail
   $("grid").addEventListener("click", ev => {
     const cell = ev.target.closest(".box-cell");
     if (!cell) return;
     const c = catByIdMap.get(cell.dataset.cat);
     const id = Number(cell.dataset.id);
     if (ev.ctrlKey || ev.metaKey) { toggleOwned(c, id); return; }
-    document.querySelectorAll(".box-cell.selected").forEach(x => x.classList.remove("selected"));
-    cell.classList.add("selected");
-    openDetail(c, id);
+    const alreadyOpen = selectedId === id && current === c;
+    if (c.kind === "w") advanceWeapon(c, id);   // click to level up
+    if (!alreadyOpen) {
+      document.querySelectorAll(".box-cell.selected").forEach(x => x.classList.remove("selected"));
+      cell.classList.add("selected");
+      openDetail(c, id);
+    }
   });
 
   // ── Detail panel ───────────────────────────────────────────────────────
