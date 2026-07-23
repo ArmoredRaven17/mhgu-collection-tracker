@@ -242,9 +242,9 @@
       { title: "Palico", cats: CATS.filter(c => c.kind === "p") },
     ];
     const tree = $("categoryTree"); tree.innerHTML = "";
-    for (const g of groups) {
+    groups.forEach((g, gi) => {
       const sec = document.createElement("div");
-      sec.className = "cat-section"; sec.dataset.open = "true";
+      sec.className = "cat-section"; sec.dataset.open = gi === 0 ? "true" : "false";   // accordion: only first open
       sec.innerHTML = `<button class="cat-section-head"><span>${g.title}</span><span class="chev">▾</span></button>
         <div class="cat-section-body"></div>`;
       const body = sec.querySelector(".cat-section-body");
@@ -258,10 +258,12 @@
         body.appendChild(row);
       }
       sec.querySelector(".cat-section-head").addEventListener("click", () => {
-        sec.dataset.open = sec.dataset.open === "true" ? "false" : "true";
+        const willOpen = sec.dataset.open !== "true";
+        tree.querySelectorAll(".cat-section").forEach(s => s.dataset.open = "false");   // close others
+        sec.dataset.open = willOpen ? "true" : "false";
       });
       tree.appendChild(sec);
-    }
+    });
   }
 
   function buildRarityFilters() {
