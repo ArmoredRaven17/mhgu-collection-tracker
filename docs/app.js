@@ -596,21 +596,21 @@
     const rec = data.byId[String(id)];
     if (!rec) return "";                       // non-craftable (relic/event) — show nothing
     const mats = data.mats, max = maxLevelOf(c, id);
+    // Upgrade tab only makes sense when the weapon is made from another (has a parent);
+    // for a root weapon it would equal Create, so it's hidden.
+    const hasChain = !!(data.parents && data.parents[id]);
+    let tab = matTab;
+    if (tab === "upgrade" && !hasChain) tab = "create";   // graceful fallback on root weapons
     let body;
-    if (matTab === "create") {
+    if (tab === "create") {
       // Full from-scratch cost of this weapon alone (assumes you have the prerequisite).
       body = `<div class="mat-step">Total Materials Required · LV 1-${max}</div>${matNameListHtml(sumTreeMats(data, id, max))}`;
-    } else if (matTab === "upgrade") {
+    } else if (tab === "upgrade") {
       // Full chain from a base weapon, min-leveling each predecessor to its branch point.
-      const segs = buildChain(data, id, max);
-      if (segs.length <= 1) {
-        body = `<div class="detail-note">Root weapon — crafted directly from materials.</div>${matNameListHtml(sumTreeMats(data, id, max))}`;
-      } else {
-        body = segs.map(s => {
-          const isT = s.treeId === id;
-          return `<div class="mat-step">${escapeHtml(weaponTreeName(c, s.treeId))} · LV 1-${s.hi}${isT ? " (final)" : " (branch point)"}</div>${matNameListHtml(sumTreeMats(data, s.treeId, s.hi))}`;
-        }).join("");
-      }
+      body = buildChain(data, id, max).map(s => {
+        const isT = s.treeId === id;
+        return `<div class="mat-step">${escapeHtml(weaponTreeName(c, s.treeId))} · LV 1-${s.hi}${isT ? " (final)" : " (branch point)"}</div>${matNameListHtml(sumTreeMats(data, s.treeId, s.hi))}`;
+      }).join("");
     } else {
       // Next Level — relative to what you own.
       const ref = refLevelOf(c, id);
@@ -620,11 +620,12 @@
         body = `<div class="mat-step">${label}</div>${matPairsHtml(rec[nl], mats)}`;
       }
     }
+    const upgradeBtn = hasChain ? `<button class="mat-tab ${tab === "upgrade" ? "active" : ""}" data-tab="upgrade">Upgrade</button>` : "";
     return `<div class="detail-section-title">Crafting materials</div>
       <div class="mat-tabs" data-role="mattabs">
-        <button class="mat-tab ${matTab === "next" ? "active" : ""}" data-tab="next">Next Level</button>
-        <button class="mat-tab ${matTab === "create" ? "active" : ""}" data-tab="create">Create</button>
-        <button class="mat-tab ${matTab === "upgrade" ? "active" : ""}" data-tab="upgrade">Upgrade</button>
+        <button class="mat-tab ${tab === "next" ? "active" : ""}" data-tab="next">Next Level</button>
+        <button class="mat-tab ${tab === "create" ? "active" : ""}" data-tab="create">Create</button>
+        ${upgradeBtn}
       </div><div class="mat-body">${body}</div>`;
   }
   // Single Create recipe (armor, palico weapon, palico armor head/body).
