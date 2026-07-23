@@ -1,10 +1,12 @@
 // build-data.mjs — generate the collection tracker's data from the mhgu-editor
-// project's source JSON. Run manually; commit the outputs.
+// project's source JSON (stats/icons) and the MHGU DB (crafting materials).
+// Run manually; commit the outputs.
 //
-//   node scripts/build-data.mjs "C:/Coding Repos/mhgu-editor" [--icons]
+//   node scripts/build-data.mjs "C:/Coding Repos/mhgu-editor" [--icons] [--db <path>]
 //
-// Zero dependencies, Node >= 18 (ESM). Reads <editor>/src/assets/*.json (and
-// <editor>/public/icons/ with --icons); writes docs/data/ (and docs/assets/icons/).
+// Zero npm deps, Node >= 22 (uses node:sqlite for materials). Reads
+// <editor>/src/assets/*.json (and <editor>/public/icons/ with --icons) plus
+// data-src/mhgu.db (crafting recipes); writes docs/data/.
 
 import { readFileSync, writeFileSync, copyFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -14,11 +16,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, '..');
 const OUT_DATA = join(REPO, 'docs', 'data');
 const OUT_STATS = join(OUT_DATA, 'stats');
+const OUT_MATERIALS = join(OUT_DATA, 'materials');
 const OUT_ICONS = join(REPO, 'docs', 'assets', 'icons');
 
 const args = process.argv.slice(2);
 const doIcons = args.includes('--icons');
-const editorRoot = (args.find(a => !a.startsWith('--')) || 'C:/Coding Repos/mhgu-editor');
+const dbArgIdx = args.indexOf('--db');
+const DB_PATH = dbArgIdx >= 0 ? args[dbArgIdx + 1] : join(REPO, 'data-src', 'mhgu.db');
+const editorRoot = (args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--db') || 'C:/Coding Repos/mhgu-editor');
 const ASSETS = join(editorRoot, 'src', 'assets');
 const ICONS_SRC = join(editorRoot, 'public', 'icons');
 
@@ -294,6 +299,82 @@ for (const def of palicoDefs) {
 const catalogPath = join(OUT_DATA, 'catalog.js');
 writeFileSync(catalogPath, 'window.CATALOG = ' + JSON.stringify(catalog) + ';\n');
 
+// ── Crafting materials (from mhgu.db) ─────────────────────────────────────
+// The MHGU DB models each weapon upgrade level as its own item named
+// "<levelName> <level>", and each armor piece as one item. `components` links
+// created_item_id -> component_item_id (+ quantity). We attach the non-equipment
+// components to our catalog by name, per weapon level and per armor piece.
+const materialsReport = { weaponLevels: [0, 0], armorPieces: [0, 0], skipped: false };
+if (!existsSync(DB_PATH)) {
+  warn(`materials: DB not found at ${DB_PATH} — skipping crafting materials (run with --db <path>)`);
+  materialsReport.skipped = true;
+} else {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(DB_PATH, { readOnly: true });
+  const EQUIP_TYPES = new Set(['Weapon', 'Armor', 'Palico Weapon', 'Palico Armor']);
+  const itemType = new Map(db.prepare('SELECT _id, type FROM items').all().map(r => [r._id, r.type]));
+  const itemName = new Map(db.prepare('SELECT _id, name FROM items').all().map(r => [r._id, r.name]));
+
+  // created_item_id -> [[materialName, qty], ...]  (equipment components dropped, dupes merged)
+  const recipeOf = new Map();
+  for (const r of db.prepare('SELECT created_item_id cid, component_item_id comp, quantity q FROM components').all()) {
+    if (EQUIP_TYPES.has(itemType.get(r.comp))) continue;   // skip the previous-tier weapon/armor
+    const name = itemName.get(r.comp); if (!name) continue;
+    let list = recipeOf.get(r.cid); if (!list) recipeOf.set(r.cid, list = new Map());
+    list.set(name, (list.get(name) || 0) + r.q);
+  }
+  // weapon item lookup: "<wtype> <name>" -> _id
+  const wtypeOf = lbl => lbl.replace(/ & /g, ' and ');
+  const weaponItemId = new Map();
+  for (const r of db.prepare('SELECT w._id id, w.wtype, i.name FROM weapons w JOIN items i ON i._id=w._id').all())
+    weaponItemId.set(`${r.wtype} ${r.name}`, r.id);
+  const armorItemId = new Map();
+  for (const r of db.prepare('SELECT a._id id, i.name FROM armor a JOIN items i ON i._id=a._id').all())
+    if (!armorItemId.has(r.name)) armorItemId.set(r.name, r.id);
+
+  // Intern material names per output file to keep them compact.
+  const makeInterner = () => { const mats = [], idx = new Map(); return {
+    mats, id: n => { let i = idx.get(n); if (i == null) { i = mats.length; mats.push(n); idx.set(n, i); } return i; } }; };
+  const listToPairs = (intern, gid) => {
+    const r = recipeOf.get(gid); if (!r || !r.size) return null;
+    return [...r].map(([name, qty]) => [intern.id(name), qty]);
+  };
+
+  // Weapons — per level
+  for (const cls of WEAPON_CLASSES) {
+    const wtype = wtypeOf(cls.name);
+    const stats = JSON.parse(readFileSync(join(OUT_STATS, cls.slug + '.json'), 'utf8')).byId;
+    const intern = makeInterner();
+    const byId = {};
+    for (const entry of catalog.weapons[cls.slug].entries) {
+      const id = entry[0], levels = stats[String(id)];
+      if (!levels) continue;
+      const perLevel = {};
+      for (const l of levels) {
+        materialsReport.weaponLevels[1]++;
+        const gid = weaponItemId.get(`${wtype} ${l.n} ${l.lv}`);
+        const pairs = gid != null ? listToPairs(intern, gid) : null;
+        if (pairs) { perLevel[l.lv] = pairs; materialsReport.weaponLevels[0]++; }
+      }
+      if (Object.keys(perLevel).length) byId[id] = perLevel;
+    }
+    writeFileSync(join(OUT_MATERIALS, cls.slug + '.json'), JSON.stringify({ mats: intern.mats, byId }));
+  }
+  // Armor — per piece (Create recipe)
+  for (const slot of ARMOR_SLOTS) {
+    const intern = makeInterner();
+    const byId = {};
+    for (const entry of catalog.armor[slot.key].entries) {
+      materialsReport.armorPieces[1]++;
+      const gid = armorItemId.get(entry[1]);
+      const pairs = gid != null ? listToPairs(intern, gid) : null;
+      if (pairs) { byId[entry[0]] = pairs; materialsReport.armorPieces[0]++; }
+    }
+    writeFileSync(join(OUT_MATERIALS, 'armor_' + slot.key + '.json'), JSON.stringify({ mats: intern.mats, byId }));
+  }
+  db.close();
+}
+
 // ── Icons ──────────────────────────────────────────────────────────────
 const ICON_SLUGS = [
   ...WEAPON_CLASSES.map(c => c.slug),
@@ -326,6 +407,13 @@ console.log(`  catalog.js: ${kb(sizeOf(catalogPath))}`);
 let statsTotal = 0;
 for (const f of readdirSync(OUT_STATS)) statsTotal += sizeOf(join(OUT_STATS, f));
 console.log(`  stats/*.json (${readdirSync(OUT_STATS).length} files): ${kb(statsTotal)} total`);
+if (!materialsReport.skipped) {
+  let matTotal = 0;
+  for (const f of readdirSync(OUT_MATERIALS)) matTotal += sizeOf(join(OUT_MATERIALS, f));
+  console.log(`  materials/*.json (${readdirSync(OUT_MATERIALS).length} files): ${kb(matTotal)} total`);
+  const [wm, wt] = materialsReport.weaponLevels, [am, at] = materialsReport.armorPieces;
+  console.log(`  materials coverage — weapon levels ${wm}/${wt}, armor pieces ${am}/${at}`);
+}
 console.log('  "Tonfa" present in output: ' + (JSON.stringify(catalog).includes('"Tonfa"') ? 'YES (BUG)' : 'no'));
 
 if (warnings.length) {

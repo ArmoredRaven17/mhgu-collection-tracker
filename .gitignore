@@ -2,3 +2,5 @@ node_modules/
 *.log
 Thumbs.db
 .DS_Store
+# Offline generator inputs (large source data, not redistributed — see NOTICE.md)
+data-src/

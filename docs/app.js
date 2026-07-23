@@ -71,9 +71,12 @@
   let current = CATS[0];
   let selectedId = null;
   let sharpBand = 0;            // 0=base 1=+1 2=+2
+  let matTab = "next";         // materials tab: "next" | "all"
+  let openMaterials = null;    // resolved materials data for the currently-open item
 
   const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
   const statsCache = new Map();
+  const materialsCache = new Map();
 
   // ── Helpers ────────────────────────────────────────────────────────────
   const escapeHtml = s => String(s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
@@ -91,6 +94,12 @@
     const p = fetch(`data/stats/${file}`).then(r => r.ok ? r.json() : Promise.reject(r.status));
     statsCache.set(file, p);
     try { return await p; } catch (e) { statsCache.delete(file); throw e; }
+  }
+  async function loadMaterials(file) {
+    if (materialsCache.has(file)) return materialsCache.get(file);
+    const p = fetch(`data/materials/${file}`).then(r => r.ok ? r.json() : Promise.reject(r.status));
+    materialsCache.set(file, p);
+    try { return await p; } catch (e) { materialsCache.delete(file); return null; }
   }
 
   // ── Dirty tracking ─────────────────────────────────────────────────────
@@ -305,6 +314,8 @@
     const lv = ownedLevel(c, id), on = isOwned(c, id);
     document.querySelectorAll("#detailStats .lvl-row").forEach(tr =>
       tr.classList.toggle("selected", on && Number(tr.dataset.lv) === lv));
+    // Materials are relative to the owned level → refresh them for weapons.
+    if (c.kind === "w" && openMaterials) renderMaterials(c, id, openMaterials);
   }
   function wireLevelRows(c, id) {
     document.querySelectorAll("#detailStats .lvl-row").forEach(tr =>
@@ -341,8 +352,10 @@
         <div><div class="detail-title">${title}</div><div class="detail-sub">${sub}</div></div>
       </div>
       <button id="detailOwnedBtn" class="detail-owned-btn ${on ? "is-owned" : ""}">${ownedBtnLabel(c, id)}</button>
-      <div id="detailStats"><div class="detail-note">Loading stats…</div></div>`;
+      <div id="detailStats"><div class="detail-note">Loading stats…</div></div>
+      <div id="detailMaterials"></div>`;
     $("detailOwnedBtn").addEventListener("click", () => toggleOwned(c, id));
+    openMaterials = null;
 
     try {
       const data = await loadStats(c.statsFile);
@@ -355,6 +368,14 @@
       refreshDetailOwned(c, id);   // highlight the owned level row, if any
     } catch (e) {
       $("detailStats").innerHTML = '<div class="detail-note">Stats unavailable for this item.</div>';
+    }
+    // Crafting materials (weapons + armor) — lazy, rendered when it arrives.
+    if (c.kind === "w" || c.kind === "a") {
+      loadMaterials(c.statsFile).then(md => {
+        if (selectedId !== id) return;
+        openMaterials = md;
+        renderMaterials(c, id, md);
+      });
     }
   }
 
@@ -451,6 +472,57 @@
       sharpBand = Number(b.dataset.band);
       if (selectedId != null) openDetail(current, selectedId);
     }));
+  }
+
+  // ── Crafting materials ─────────────────────────────────────────────────
+  const matPairsHtml = (pairs, mats) =>
+    (!pairs || !pairs.length) ? '<div class="detail-note">None listed.</div>'
+      : `<ul class="mat-list">${pairs.map(([mi, q]) => `<li><span class="mat-q">${q}×</span> ${escapeHtml(mats[mi])}</li>`).join("")}</ul>`;
+  const matNameListHtml = map => {
+    const entries = [...map].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    return `<ul class="mat-list">${entries.map(([n, q]) => `<li><span class="mat-q">${q}×</span> ${escapeHtml(n)}</li>`).join("")}</ul>`;
+  };
+  // Reference level: owned → its level (unspecified counts as 1); not owned → 0 (needs creating).
+  const refLevelOf = (c, id) => isOwned(c, id) ? Math.max(1, ownedLevel(c, id)) : 0;
+
+  function weaponMaterialsHtml(c, id, data) {
+    const rec = data.byId[String(id)];
+    if (!rec) return "";                       // non-craftable (relic/event) — show nothing
+    const mats = data.mats, max = maxLevelOf(c, id), ref = refLevelOf(c, id);
+    if (max > 0 && ref >= max)
+      return `<div class="detail-section-title">Crafting materials</div><div class="detail-note">Fully upgraded — no materials needed.</div>`;
+    let body;
+    if (matTab === "next") {
+      const nl = ref + 1;
+      const label = ref === 0 ? "Create (LV 1)" : `Upgrade to LV ${nl}`;
+      body = `<div class="mat-step">${label}</div>${matPairsHtml(rec[nl], mats)}`;
+    } else {
+      const merge = new Map();
+      for (let L = ref + 1; L <= max; L++) {
+        const p = rec[L]; if (!p) continue;
+        for (const [mi, q] of p) { const n = mats[mi]; merge.set(n, (merge.get(n) || 0) + q); }
+      }
+      const label = ref === 0 ? "Everything to reach max" : `Remaining to reach LV ${max}`;
+      body = `<div class="mat-step">${label}</div>${matNameListHtml(merge)}`;
+    }
+    return `<div class="detail-section-title">Crafting materials</div>
+      <div class="mat-tabs" data-role="mattabs">
+        <button class="mat-tab ${matTab === "next" ? "active" : ""}" data-tab="next">Next Level</button>
+        <button class="mat-tab ${matTab === "all" ? "active" : ""}" data-tab="all">All Materials Needed</button>
+      </div><div class="mat-body">${body}</div>`;
+  }
+  function armorMaterialsHtml(id, data) {
+    const rec = data.byId[String(id)];
+    if (!rec) return "";
+    return `<div class="detail-section-title">Crafting materials</div>${matPairsHtml(rec, data.mats)}`;
+  }
+  function renderMaterials(c, id, data) {
+    const el = $("detailMaterials"); if (!el) return;
+    if (!data) { el.innerHTML = ""; return; }
+    el.innerHTML = c.kind === "w" ? weaponMaterialsHtml(c, id, data) : armorMaterialsHtml(id, data);
+    const tabs = el.querySelector('[data-role="mattabs"]');
+    if (tabs) tabs.querySelectorAll("button").forEach(b =>
+      b.addEventListener("click", () => { matTab = b.dataset.tab; renderMaterials(c, id, data); }));
   }
 
   // ── Save / load ────────────────────────────────────────────────────────
