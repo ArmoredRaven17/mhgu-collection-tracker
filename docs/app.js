@@ -199,13 +199,18 @@
     }
     return true;
   }
+  // Rarity ordering: 1 → 2 → … → 10 → X(11), matching the Save App's in-game sort
+  // within a class. Unknown rarity (0) sorts last; ties keep in-game (id) order.
+  const rarKey = r => (r === 0 ? 99 : r);
   function sortItems(items) {
     const s = filters.sort;
     if (s === "name") items.sort((a, b) => a.name.localeCompare(b.name));
-    else if (s === "rarity") items.sort((a, b) => (b.rar - a.rar) || (a.id - b.id));
+    else if (s === "rarity") items.sort((a, b) => (rarKey(a.rar) - rarKey(b.rar)) || (a.id - b.id));
     else items.sort((a, b) => a.id - b.id);
     return items;
   }
+  // Weapons default to rarity order (1 → X); armor/palico keep in-game (id) order.
+  const defaultSortFor = kind => kind === "w" ? "rarity" : "id";
   function renderGrid() {
     const grid = $("grid");
     let items = currentItems().filter(passesFilters);
@@ -224,6 +229,8 @@
   function selectCategory(c) {
     current = c;
     selectedId = null;
+    filters.sort = defaultSortFor(c.kind);   // weapons open rarity-sorted, others by in-game id
+    $("sortSelect").value = filters.sort;
     document.querySelectorAll(".cat-row").forEach(r => r.classList.toggle("active", r.dataset.cat === catId(c)));
     $("catTitle").textContent = c.label;
     renderGrid();
