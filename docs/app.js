@@ -389,8 +389,8 @@
     } catch (e) {
       $("detailStats").innerHTML = '<div class="detail-note">Stats unavailable for this item.</div>';
     }
-    // Crafting materials (weapons + armor) — lazy, rendered when it arrives.
-    if (c.kind === "w" || c.kind === "a") {
+    // Crafting materials (weapons, armor, palico) — lazy, rendered when it arrives.
+    if (c.kind === "w" || c.kind === "a" || c.kind === "p") {
       loadMaterials(c.statsFile).then(md => {
         if (selectedId !== id) return;
         openMaterials = md;
@@ -531,15 +531,18 @@
         <button class="mat-tab ${matTab === "all" ? "active" : ""}" data-tab="all">All Materials Needed</button>
       </div><div class="mat-body">${body}</div>`;
   }
-  function armorMaterialsHtml(id, data) {
-    const rec = data.byId[String(id)];
+  // Single Create recipe (armor, palico weapon, palico armor head/body).
+  function createMaterialsHtml(c, id, data) {
+    const rec = (c.kind === "p" && (c.key === "head" || c.key === "body"))
+      ? (data[c.key] || {})[String(id)]     // palico armor file is keyed by slot
+      : (data.byId || {})[String(id)];
     if (!rec) return "";
     return `<div class="detail-section-title">Crafting materials</div>${matPairsHtml(rec, data.mats)}`;
   }
   function renderMaterials(c, id, data) {
     const el = $("detailMaterials"); if (!el) return;
     if (!data) { el.innerHTML = ""; return; }
-    el.innerHTML = c.kind === "w" ? weaponMaterialsHtml(c, id, data) : armorMaterialsHtml(id, data);
+    el.innerHTML = c.kind === "w" ? weaponMaterialsHtml(c, id, data) : createMaterialsHtml(c, id, data);
     const tabs = el.querySelector('[data-role="mattabs"]');
     if (tabs) tabs.querySelectorAll("button").forEach(b =>
       b.addEventListener("click", () => { matTab = b.dataset.tab; renderMaterials(c, id, data); }));

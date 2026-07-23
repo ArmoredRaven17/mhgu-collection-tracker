@@ -304,7 +304,7 @@ writeFileSync(catalogPath, 'window.CATALOG = ' + JSON.stringify(catalog) + ';\n'
 // "<levelName> <level>", and each armor piece as one item. `components` links
 // created_item_id -> component_item_id (+ quantity). We attach the non-equipment
 // components to our catalog by name, per weapon level and per armor piece.
-const materialsReport = { weaponLevels: [0, 0], armorPieces: [0, 0], skipped: false };
+const materialsReport = { weaponLevels: [0, 0], armorPieces: [0, 0], palicoWeapons: [0, 0], palicoArmor: [0, 0], skipped: false };
 if (!existsSync(DB_PATH)) {
   warn(`materials: DB not found at ${DB_PATH} — skipping crafting materials (run with --db <path>)`);
   materialsReport.skipped = true;
@@ -331,6 +331,12 @@ if (!existsSync(DB_PATH)) {
   const armorItemId = new Map();
   for (const r of db.prepare('SELECT a._id id, i.name FROM armor a JOIN items i ON i._id=a._id').all())
     if (!armorItemId.has(r.name)) armorItemId.set(r.name, r.id);
+  const palicoWeaponItemId = new Map();
+  for (const r of db.prepare('SELECT p._id id, i.name FROM palico_weapons p JOIN items i ON i._id=p._id').all())
+    if (!palicoWeaponItemId.has(r.name)) palicoWeaponItemId.set(r.name, r.id);
+  const palicoArmorItemId = new Map();   // helms + mails share one table, matched by name
+  for (const r of db.prepare('SELECT p._id id, i.name FROM palico_armor p JOIN items i ON i._id=p._id').all())
+    if (!palicoArmorItemId.has(r.name)) palicoArmorItemId.set(r.name, r.id);
 
   // Intern material names per output file to keep them compact.
   const makeInterner = () => { const mats = [], idx = new Map(); return {
@@ -372,6 +378,32 @@ if (!existsSync(DB_PATH)) {
     }
     writeFileSync(join(OUT_MATERIALS, 'armor_' + slot.key + '.json'), JSON.stringify({ mats: intern.mats, byId }));
   }
+  // Palico weapons — single Create recipe per piece
+  {
+    const intern = makeInterner();
+    const byId = {};
+    for (const entry of catalog.palico.weapon.entries) {
+      materialsReport.palicoWeapons[1]++;
+      const gid = palicoWeaponItemId.get(entry[1]);
+      const pairs = gid != null ? listToPairs(intern, gid) : null;
+      if (pairs) { byId[entry[0]] = pairs; materialsReport.palicoWeapons[0]++; }
+    }
+    writeFileSync(join(OUT_MATERIALS, 'palico_weapons.json'), JSON.stringify({ mats: intern.mats, byId }));
+  }
+  // Palico armor — helms (head) + mails (body) in one file, keyed by slot
+  {
+    const intern = makeInterner();
+    const out = { mats: intern.mats, head: {}, body: {} };
+    for (const key of ['head', 'body']) {
+      for (const entry of catalog.palico[key].entries) {
+        materialsReport.palicoArmor[1]++;
+        const gid = palicoArmorItemId.get(entry[1]);
+        const pairs = gid != null ? listToPairs(intern, gid) : null;
+        if (pairs) { out[key][entry[0]] = pairs; materialsReport.palicoArmor[0]++; }
+      }
+    }
+    writeFileSync(join(OUT_MATERIALS, 'palico_armor.json'), JSON.stringify(out));
+  }
   db.close();
 }
 
@@ -412,7 +444,9 @@ if (!materialsReport.skipped) {
   for (const f of readdirSync(OUT_MATERIALS)) matTotal += sizeOf(join(OUT_MATERIALS, f));
   console.log(`  materials/*.json (${readdirSync(OUT_MATERIALS).length} files): ${kb(matTotal)} total`);
   const [wm, wt] = materialsReport.weaponLevels, [am, at] = materialsReport.armorPieces;
+  const [pwm, pwt] = materialsReport.palicoWeapons, [pam, pat] = materialsReport.palicoArmor;
   console.log(`  materials coverage — weapon levels ${wm}/${wt}, armor pieces ${am}/${at}`);
+  console.log(`  materials coverage — palico weapons ${pwm}/${pwt}, palico armor ${pam}/${pat}`);
 }
 console.log('  "Tonfa" present in output: ' + (JSON.stringify(catalog).includes('"Tonfa"') ? 'YES (BUG)' : 'no'));
 
