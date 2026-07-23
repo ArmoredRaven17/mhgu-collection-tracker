@@ -76,7 +76,8 @@
   let viewMode = "grid";       // "grid" | "list"
   try { viewMode = localStorage.getItem("mhgu-tracker-view") || "grid"; } catch (e) {}
 
-  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", dummy: false, rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
+  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", dummy: false, armorClass: "all", rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
+  const armorClassName = { B: "Blademaster", G: "Gunner", A: "Both" };
   const isDummy = name => /\(DUMMY\)/i.test(name);
   const dummyIds = new Map();   // "kind:key" -> Set(ids whose name is DUMMY)
   for (const c of CATS) {
@@ -280,7 +281,8 @@
   // ── Grid rendering ─────────────────────────────────────────────────────
   function normalize(c, entry) {
     return { kind: c.kind, key: c.key, cat: c, id: entry[0], name: entry[1], rar: entry[2] || 0,
-      final: c.kind === "w" ? entry[3] : 0, iconSlug: c.iconSlug };
+      final: c.kind === "w" ? entry[3] : 0, armorClass: c.kind === "a" ? (entry[7] || "A") : "",
+      iconSlug: c.iconSlug };
   }
   function currentItems() {
     if (filters.searchAll && filters.text) {
@@ -296,6 +298,8 @@
   }
   function passesFilters(it) {
     if (!filters.dummy && isDummy(it.name)) return false;
+    // Armor-type filter: "Both" (A) pieces always pass; applies to armor only.
+    if (it.kind === "a" && filters.armorClass !== "all" && it.armorClass !== "A" && it.armorClass !== filters.armorClass) return false;
     if (filters.text && !filters.searchAll) {
       const q = filters.text.toLowerCase();
       if (!it.name.toLowerCase().includes(q) && !(it.final && String(it.final).toLowerCase().includes(q))) return false;
@@ -355,6 +359,7 @@
   function selectCategory(c) {
     current = c;
     selectedId = null;
+    $("armorTypeGroup").classList.toggle("hidden", c.kind !== "a");   // armor-type filter is armor-only
     document.querySelectorAll(".cat-row").forEach(r => r.classList.toggle("active", r.dataset.cat === catId(c)));
     $("catTitle").textContent = c.label;
     renderGrid();
@@ -410,7 +415,7 @@
     let sub = "";
     if (c.kind === "a") {
       const femaleName = entry[6];
-      const parts = [`Rarity ${entry[2] ? rarityLabel(entry[2]) : "?"}`];
+      const parts = [armorClassName[entry[7] || "A"], `Rarity ${entry[2] ? rarityLabel(entry[2]) : "?"}`];
       if (entry[4]) parts.push(escapeHtml(entry[4]) + " set");
       sub = parts.join(" · ");
       if (femaleName) title = `${escapeHtml(name)} <span style="opacity:.6">/</span> ${escapeHtml(femaleName)}`;
@@ -759,6 +764,8 @@
     r.addEventListener("change", function () { if (this.checked) { filters.owned = this.value; renderGrid(); } }));
   $("sortSelect").addEventListener("change", function () { filters.sort = this.value; renderGrid(); });
   $("dummyFilter").addEventListener("change", function () { filters.dummy = this.checked; renderGrid(); updateProgress(); });
+  document.querySelectorAll('input[name="armorClassFilter"]').forEach(r =>
+    r.addEventListener("change", function () { if (this.checked) { filters.armorClass = this.value; renderGrid(); } }));
   function setView(v) {
     viewMode = v === "list" ? "list" : "grid";
     try { localStorage.setItem("mhgu-tracker-view", viewMode); } catch (e) {}

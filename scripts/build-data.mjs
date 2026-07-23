@@ -243,6 +243,10 @@ if (db) {
       sk: skillsByItem.get(r.id) || [],
     });
 }
+// Blademaster/Gunner tag by name (hunter_type: 0=Blademaster, 1=Gunner, 2=Both).
+const armorClassByName = new Map();
+if (db) for (const r of db.prepare('SELECT i.name, a.hunter_type ht FROM armor a JOIN items i ON i._id=a._id').all())
+  if (!armorClassByName.has(r.name)) armorClassByName.set(r.name, r.ht === 0 ? 'B' : r.ht === 1 ? 'G' : 'A');
 let armorFilledFromDb = 0;
 
 for (const slot of ARMOR_SLOTS) {
@@ -266,7 +270,7 @@ for (const slot of ARMOR_SLOTS) {
     for (const [fid, mid] of femaleToMale) {
       if (mid === id && names[fid]) { femaleId = fid; femaleName = names[fid]; break; }
     }
-    entries.push([id, name, rar[id] || 0, deco[id] || 0, setByName.get(name) || 0, femaleId, femaleName]);
+    entries.push([id, name, rar[id] || 0, deco[id] || 0, setByName.get(name) || 0, femaleId, femaleName, armorClassByName.get(name) || 'A']);
 
     const k = armorKir[name];
     if (k) {

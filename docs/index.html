@@ -48,6 +48,12 @@
             <div class="filter-label">Rarity</div>
             <div id="rarityFilters" class="rarity-filters"></div>
           </div>
+          <div class="filter-group" id="armorTypeGroup">
+            <div class="filter-label">Armor type</div>
+            <label class="chk"><input type="radio" name="armorClassFilter" value="all" checked><span>All</span></label>
+            <label class="chk"><input type="radio" name="armorClassFilter" value="B"><span>Blademaster</span></label>
+            <label class="chk"><input type="radio" name="armorClassFilter" value="G"><span>Gunner</span></label>
+          </div>
           <div class="filter-group">
             <label class="chk"><input type="checkbox" id="dummyFilter"><span>Include DUMMY (MHXX) equipment</span></label>
           </div>
@@ -122,7 +128,7 @@
 <!-- Toast -->
 <div id="toast" class="toast hidden"></div>
 
-<script src="data/catalog.js?v=3"></script>
-<script src="app.js?v=15"></script>
+<script src="data/catalog.js?v=4"></script>
+<script src="app.js?v=16"></script>
 </body>
 </html>
