@@ -144,11 +144,15 @@ body{
 .box-grid{
   flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;
   display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));
+  /* Fixed row height: aspect-ratio on the cells does NOT reserve grid-track
+     height, so auto rows collapse and cells overlap. A definite row height
+     keeps every cell square-ish and the grid reflows cleanly on resize. */
+  grid-auto-rows:54px;
   gap:4px;padding:4px 8px 16px 0;align-content:start;
 }
 .grid-empty{padding:30px;text-align:center;opacity:.6}
 .box-cell{
-  position:relative;aspect-ratio:1;border-radius:5px;cursor:pointer;
+  position:relative;height:100%;border-radius:5px;cursor:pointer;
   background:#1c1c20;border:1px solid #2a2a30;
   display:flex;align-items:center;justify-content:center;overflow:hidden;
 }
