@@ -52,6 +52,15 @@ share-alike clause, the upscaled and tint-derived variants bundled here are
 shared under the same licence. Underlying Capcom game sprites remain Capcom
 property regardless of which community wiki redistributes them.
 
+### Monster Hunter Wiki (Fandom) — monster icons
+
+The monster icons under [docs/assets/MonsterIcons/](docs/assets/MonsterIcons/)
+(used by the theme colour picker, carried over from the MHGU Quest
+Randomizer project) come from the Fandom community wiki,
+https://monsterhunter.fandom.com/. **Fandom community content is licensed
+under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/);** any
+adaptations are shared under the same licence.
+
 ---
 
 ## Fonts
