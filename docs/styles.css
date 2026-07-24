@@ -110,10 +110,13 @@ body{
 
 /* Category tree */
 .cat-tree{display:flex;flex-direction:column;gap:6px}
-.cat-section{border:1px solid var(--line);border-radius:8px;overflow:clip;background:var(--bg2)}
+.cat-section{border:1px solid var(--line);border-radius:8px;overflow:clip;background:var(--bg2);
+  /* dark outline keeps the tier-coloured category text readable on any background */
+  text-shadow:-1px 0 rgba(0,0,0,.75),1px 0 rgba(0,0,0,.75),0 -1px rgba(0,0,0,.75),0 1px rgba(0,0,0,.75)}
 .cat-section-head{
   width:100%;text-align:left;border:none;color:var(--text);cursor:pointer;
   padding:9px 14px;font-size:14px;font-weight:700;display:flex;justify-content:space-between;align-items:center;
+  text-shadow:-1px 0 rgba(0,0,0,.75),1px 0 rgba(0,0,0,.75),0 -1px rgba(0,0,0,.75),0 1px rgba(0,0,0,.75);
   background-image:
     linear-gradient(color-mix(in srgb,var(--bg2) 80%,transparent),color-mix(in srgb,var(--bg2) 80%,transparent)),
     url('assets/banner-background.png');
