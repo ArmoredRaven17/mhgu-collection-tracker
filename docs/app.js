@@ -403,7 +403,6 @@
   function selectCategory(c) {
     current = c;
     selectedId = null;
-    $("armorTypeGroup").classList.toggle("hidden", c.kind !== "a");   // armor-type filter is armor-only
     document.querySelectorAll(".cat-row").forEach(r => r.classList.toggle("active", r.dataset.cat === catId(c)));
     $("catTitle").textContent = c.label;
     renderGrid();
