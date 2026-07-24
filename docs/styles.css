@@ -111,12 +111,12 @@ body{
 /* Category tree */
 .cat-tree{display:flex;flex-direction:column;gap:6px}
 .cat-section{border:1px solid var(--line);border-radius:8px;overflow:clip;background:var(--bg2);
-  /* dark outline keeps the tier-coloured category text readable on any background */
-  text-shadow:-1px 0 rgba(0,0,0,.75),1px 0 rgba(0,0,0,.75),0 -1px rgba(0,0,0,.75),0 1px rgba(0,0,0,.75)}
+  /* dark 8-point outline keeps the tier-coloured category text readable on any background */
+  text-shadow:-1px -1px 0 rgba(0,0,0,.85),1px -1px 0 rgba(0,0,0,.85),-1px 1px 0 rgba(0,0,0,.85),1px 1px 0 rgba(0,0,0,.85),-1px 0 0 rgba(0,0,0,.85),1px 0 0 rgba(0,0,0,.85),0 -1px 0 rgba(0,0,0,.85),0 1px 0 rgba(0,0,0,.85)}
 .cat-section-head{
   width:100%;text-align:left;border:none;color:var(--text);cursor:pointer;
   padding:9px 14px;font-size:14px;font-weight:700;display:flex;justify-content:space-between;align-items:center;
-  text-shadow:-1px 0 rgba(0,0,0,.75),1px 0 rgba(0,0,0,.75),0 -1px rgba(0,0,0,.75),0 1px rgba(0,0,0,.75);
+  text-shadow:-1px -1px 0 rgba(0,0,0,.85),1px -1px 0 rgba(0,0,0,.85),-1px 1px 0 rgba(0,0,0,.85),1px 1px 0 rgba(0,0,0,.85),-1px 0 0 rgba(0,0,0,.85),1px 0 0 rgba(0,0,0,.85),0 -1px 0 rgba(0,0,0,.85),0 1px 0 rgba(0,0,0,.85);
   background-image:
     linear-gradient(color-mix(in srgb,var(--bg2) 80%,transparent),color-mix(in srgb,var(--bg2) 80%,transparent)),
     url('assets/banner-background.png');
@@ -136,7 +136,7 @@ body{
 .cat-row:hover{background:#ffffff12}
 .cat-row.active{background:color-mix(in srgb,var(--accent) 55%,transparent)}
 .cat-row img{width:20px;height:20px;object-fit:contain;flex-shrink:0}
-.cat-row .cat-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .25s}
+.cat-row .cat-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .25s;padding-left:2px}
 .cat-row .cat-frac{font-size:11px;opacity:.75;font-variant-numeric:tabular-nums}
 .cat-row.complete .cat-frac{color:#7fdc7f;opacity:1}
 
