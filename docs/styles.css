@@ -170,6 +170,17 @@ body{
 .list-row:not(.owned) .list-name{opacity:.55}
 .list-row .cell-check{position:static;font-size:13px;text-shadow:none;color:#7fffa8;flex-shrink:0}
 .list-row .cell-check.max{color:#ff2b2b}
+/* Materials view (same #grid container) */
+#grid.view-materials{display:flex;flex-direction:column;grid-auto-rows:initial;gap:6px}
+.mat-view-row{background:var(--grid-bg);border:1px solid #2a2a30;border-radius:7px;padding:8px 10px;cursor:pointer}
+.mat-view-row:hover{border-color:var(--accent-hover)}
+.mat-view-row.selected{border-color:#fff;box-shadow:inset 0 0 0 1px #fff}
+.mat-view-head{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.mat-view-head .list-name{font-weight:600}
+.mat-view-row.complete{opacity:.5}
+.mat-view-row.complete .mat-view-head{margin-bottom:0}
+.mat-complete{display:inline-block;font-size:11px;color:#7fdc7f;border:1px solid #7fdc7f55;border-radius:6px;padding:1px 8px}
+.mat-view-body .mat-list{padding-left:27px}
 .box-cell{
   position:relative;height:100%;border-radius:5px;cursor:pointer;
   background:var(--grid-bg);border:1px solid #2a2a30;

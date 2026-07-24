@@ -160,8 +160,12 @@
   function afterOwnedChange(c, id) {
     markDirty();
     updateProgress();
-    const cell = $("grid").querySelector(`[data-id="${id}"][data-cat="${catId(c)}"]`);
-    if (cell) updateCellOwned(cell, isOwned(c, id), ownedLevel(c, id), maxLevelOf(c, id));
+    if (viewMode === "materials") {
+      renderGrid();   // material lists (totals / remaining / Complete) depend on ownership
+    } else {
+      const cell = $("grid").querySelector(`[data-id="${id}"][data-cat="${catId(c)}"]`);
+      if (cell) updateCellOwned(cell, isOwned(c, id), ownedLevel(c, id), maxLevelOf(c, id));
+    }
     if (selectedId === id && current === c) refreshDetailOwned(c, id);
   }
   function updateCellOwned(cell, on, level, max) {
@@ -350,12 +354,50 @@
   function renderGrid() {
     const grid = $("grid");
     grid.classList.toggle("view-list", viewMode === "list");
+    grid.classList.toggle("view-materials", viewMode === "materials");
     let items = currentItems().filter(passesFilters);
     sortItems(items);
     if (!items.length) { grid.innerHTML = ""; $("gridEmpty").classList.remove("hidden"); return; }
     $("gridEmpty").classList.add("hidden");
+    if (viewMode === "materials") { renderMaterialsView(items); return; }
     const render = viewMode === "list" ? listRowHtml : cellHtml;
     grid.innerHTML = items.map(render).join("");
+  }
+
+  // ── Materials View — a whole category's shopping list, one block per piece ──
+  let materialsViewToken = 0;
+  async function renderMaterialsView(items) {
+    const token = ++materialsViewToken;
+    const grid = $("grid");
+    grid.innerHTML = '<div class="detail-note" style="padding:20px">Loading materials…</div>';
+    const files = [...new Set(items.map(it => it.cat.statsFile))];
+    const dataByFile = {};
+    await Promise.all(files.map(f => loadMaterials(f).then(d => { dataByFile[f] = d; }).catch(() => { dataByFile[f] = null; })));
+    if (token !== materialsViewToken) return;   // a newer render superseded this one
+    grid.innerHTML = items.map(it => materialsRowHtml(it.cat, it.id, it, dataByFile[it.cat.statsFile])).join("");
+  }
+  function materialsRowHtml(c, id, it, data) {
+    let bodyHtml = "", complete = false;
+    const max = maxLevelOf(c, id), owned = isOwned(c, id);
+    if (c.kind === "w") {
+      if (owned && (max === 0 || ownedLevel(c, id) >= max)) complete = true;
+      else if (!data || !data.byId[String(id)]) bodyHtml = '<div class="detail-note">No material data.</div>';
+      else if (owned) bodyHtml = matNameListHtml(sumTreeMats(data, id, max, refLevelOf(c, id) + 1)); // remaining levels
+      else bodyHtml = matNameListHtml(chainAggregate(data, id, max));                                 // full from-scratch chain
+    } else {
+      if (owned) complete = true;                 // armor/palico have no levels → owned == done
+      else {
+        const rec = data ? (c.kind === "p" && (c.key === "head" || c.key === "body")
+          ? (data[c.key] || {})[String(id)] : (data.byId || {})[String(id)]) : null;
+        bodyHtml = rec ? matPairsHtml(rec, data.mats) : '<div class="detail-note">No material data.</div>';
+      }
+    }
+    if (complete) bodyHtml = '<span class="mat-complete">Complete</span>';
+    const rarTxt = it.rar >= 1 ? rarityLabel(it.rar) : "–";
+    return `<div class="mat-view-row${complete ? " complete" : ""}" data-id="${id}" data-cat="${c.kind}:${c.key}" title="${escapeHtml(it.name)}">
+      <div class="mat-view-head"><img class="list-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="">
+        <span class="list-name">${escapeHtml(it.name)}</span><span class="list-rar">R${rarTxt}</span></div>
+      <div class="mat-view-body">${bodyHtml}</div></div>`;
   }
 
   function selectCategory(c) {
@@ -374,7 +416,7 @@
   //   first click on a cell = inspect (open detail, no change)
   //   clicking the already-open weapon = cycle ownership/level up to max
   $("grid").addEventListener("click", ev => {
-    const cell = ev.target.closest(".box-cell, .list-row");
+    const cell = ev.target.closest(".box-cell, .list-row, .mat-view-row");
     if (!cell) return;
     const c = catByIdMap.get(cell.dataset.cat);
     const id = Number(cell.dataset.id);
@@ -573,13 +615,20 @@
   // Reference level: owned → its level (unspecified counts as 1); not owned → 0 (needs creating).
   const refLevelOf = (c, id) => isOwned(c, id) ? Math.max(1, ownedLevel(c, id)) : 0;
 
-  // Sum a weapon tree's per-level materials from level 1..hi, merged by name.
-  function sumTreeMats(data, treeId, hi) {
+  // Sum a weapon tree's per-level materials from level lo..hi, merged by name.
+  function sumTreeMats(data, treeId, hi, lo = 1) {
     const rec = data.byId[String(treeId)], merge = new Map();
-    if (rec) for (let L = 1; L <= hi; L++) {
+    if (rec) for (let L = lo; L <= hi; L++) {
       const p = rec[L]; if (!p) continue;
       for (const [mi, q] of p) { const n = data.mats[mi]; merge.set(n, (merge.get(n) || 0) + q); }
     }
+    return merge;
+  }
+  // Full from-scratch total across the whole upgrade chain (predecessors + target).
+  function chainAggregate(data, id, max) {
+    const merge = new Map();
+    for (const s of buildChain(data, id, max))
+      for (const [n, q] of sumTreeMats(data, s.treeId, s.hi)) merge.set(n, (merge.get(n) || 0) + q);
     return merge;
   }
   // Walk parent lineage: [{treeId, hi}] from root → target (each predecessor only to its branch level).
@@ -798,7 +847,7 @@
   document.querySelectorAll('input[name="armorClassFilter"]').forEach(r =>
     r.addEventListener("change", function () { if (this.checked) { filters.armorClass = this.value; renderGrid(); } }));
   function setView(v) {
-    viewMode = v === "list" ? "list" : "grid";
+    viewMode = (v === "list" || v === "materials") ? v : "grid";
     try { localStorage.setItem("mhgu-tracker-view", viewMode); } catch (e) {}
     $("viewToggle").querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.view === viewMode));
     renderGrid();
