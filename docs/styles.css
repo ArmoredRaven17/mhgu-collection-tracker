@@ -120,7 +120,12 @@ body{
   background-size:auto 100%;background-position:left center;background-repeat:repeat;
 }
 .cat-section-head:hover{filter:brightness(1.15)}
-.cat-section-body{display:none;flex-direction:column;padding:4px}
+.cat-section-body{display:none;flex-direction:column;padding:4px;
+  background-image:
+    linear-gradient(color-mix(in srgb,var(--bg1) 60%,transparent),color-mix(in srgb,var(--bg1) 60%,transparent)),
+    url('assets/panel-body-bg.png');
+  background-size:contain 100%;background-position:left center;background-repeat:repeat;
+}
 .cat-section[data-open="true"] .cat-section-body{display:flex}
 .cat-row{
   display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:13px;
