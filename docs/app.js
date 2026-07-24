@@ -422,8 +422,10 @@
     const id = Number(cell.dataset.id);
     if (ev.ctrlKey || ev.metaKey) { toggleOwned(c, id); return; }
     const alreadyOpen = selectedId === id && current === c;
-    if (alreadyOpen && c.kind === "w") {
-      advanceWeapon(c, id);   // repeat clicks on the open weapon level it up
+    if (alreadyOpen) {
+      // repeat click on the open piece: weapons level up; armor/palico mark owned
+      if (c.kind === "w") advanceWeapon(c, id);
+      else if (!isOwned(c, id)) toggleOwned(c, id);   // (already-owned = no-op; ctrl+click un-owns)
     } else {
       document.querySelectorAll(".box-cell.selected, .list-row.selected").forEach(x => x.classList.remove("selected"));
       cell.classList.add("selected");
