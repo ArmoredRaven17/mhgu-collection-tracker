@@ -375,7 +375,7 @@
     await Promise.all(files.map(f => loadMaterials(f).then(d => { dataByFile[f] = d; }).catch(() => { dataByFile[f] = null; })));
     if (token !== materialsViewToken) return;   // a newer render superseded this one
     const note = items.some(it => it.kind === "w")
-      ? '<div class="mat-view-note">List shows <b>Upgrade Materials Only</b>. For creation costs and methods (Create Directly or Upgrade From), refer to the weapon entry for desired weapon(s).</div>'
+      ? '<div class="mat-view-note">List shows the total for <b>Upgrade Materials Only</b>. For creation materials, methods (Create Directly or Upgrade From) and Next Level materials, please refer to the weapon entry for desired weapon(s).</div>'
       : "";
     grid.innerHTML = note + items.map(it => materialsRowHtml(it.cat, it.id, it, dataByFile[it.cat.statsFile])).join("");
   }
