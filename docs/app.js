@@ -895,7 +895,9 @@
     const c = hexRgb(hex), r = document.documentElement.style;
     r.setProperty("--bg", cssRgb(darken(c, .70)));
     r.setProperty("--bg1", cssRgb(darken(c, .80)));
-    r.setProperty("--grid-bg", cssRgb(darken(c, .35)));   // grid backdrop: deep, hue-preserving tint
+    r.setProperty("--grid-bg", cssRgb(darken(c, .35)));   // grid cells: deep, hue-preserving tint
+    r.setProperty("--content-bg", cssRgb(darken(c, .55))); // grid backdrop (behind the cells)
+    r.setProperty("--panel-bg", cssRgb(darken(c, .40)));  // detail/display pane: fairly dark theme tint
     r.setProperty("--bg2", cssRgb(darken(c, .95)));
     r.setProperty("--hover", cssRgb(darken(c, .30)));
     r.setProperty("--accent", cssRgb(darken(c, .7)));
