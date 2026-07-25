@@ -6,7 +6,7 @@
 }
 /* Theme variables set at runtime from the chosen color (see app.js). */
 :root{
-  --bg:#3e3e3e; --bg1:#000; --grid-bg:#141018; --bg2:#333; --hover:#2f2f2f; --accent:#7a7a7a; --accent-hover:#9a9a9a;
+  --bg:#3e3e3e; --bg1:#000; --grid-bg:#141018; --content-bg:#0e0d11; --panel-bg:#141418; --bg2:#333; --hover:#2f2f2f; --accent:#7a7a7a; --accent-hover:#9a9a9a;
   --text:#f3f3f3; --text-dim:#fff; --line:#ffffff1f; --card:#ffffff0d;
   --titlebar-overlay:rgba(0,0,0,0.18);
 }
@@ -53,7 +53,11 @@ body{
     url('assets/sidebar-background-texture1.png');
   background-size:auto 100%;background-position:left center;background-repeat:repeat;
 }
-.content{flex:1;min-width:0;overflow:hidden;background:var(--bg1)}
+.content{flex:1;min-width:0;overflow:hidden;background-color:var(--content-bg);
+  background-image:
+    linear-gradient(color-mix(in srgb,var(--content-bg) 84%,transparent),color-mix(in srgb,var(--content-bg) 84%,transparent)),
+    url('assets/rockyTextureDark.png');
+  background-repeat:repeat;background-size:auto,200px 200px}
 .content-inner{display:flex;height:100%;min-width:0}
 .grid-column{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;padding:16px 16px 0}
 
@@ -221,7 +225,12 @@ body{
 
 /* Detail panel */
 .detail-panel{
-  flex:0 0 340px;width:340px;overflow-y:auto;background:#141418;border-left:1px solid var(--line);
+  flex:0 0 340px;width:340px;overflow-y:auto;border-left:1px solid var(--line);
+  background-color:var(--panel-bg);
+  background-image:
+    linear-gradient(color-mix(in srgb,var(--panel-bg) 90%,transparent),color-mix(in srgb,var(--panel-bg) 90%,transparent)),
+    url('assets/rockyTextureDark2.png');
+  background-repeat:repeat;background-size:auto,200px 200px;
   padding:18px 18px 24px;
 }
 .detail-empty{opacity:.5;text-align:center;margin-top:40px}
@@ -271,7 +280,12 @@ body{
 
 /* Modals */
 .modal{position:fixed;inset:0;background:#000000a8;display:flex;align-items:center;justify-content:center;z-index:20}
-.modal-card{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:22px;width:min(440px,90vw);max-height:85vh;overflow-y:auto}
+.modal-card{border:1px solid var(--line);border-radius:12px;padding:22px;width:min(440px,90vw);max-height:85vh;overflow-y:auto;
+  background-color:var(--bg2);
+  background-image:
+    linear-gradient(color-mix(in srgb,var(--bg2) 84%,transparent),color-mix(in srgb,var(--bg2) 84%,transparent)),
+    url('assets/rockyTextureDark2.png');
+  background-repeat:repeat;background-size:auto,200px 200px}
 .modal-card h2{margin:0 0 16px;font-size:18px}
 .modal-card p{margin:0 0 10px;line-height:1.45}
 .modal-card a{color:var(--accent-hover)}
