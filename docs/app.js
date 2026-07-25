@@ -642,40 +642,51 @@
   }
   const weaponTreeName = (c, treeId) => { const e = C.weapons[c.key].entries.find(x => x[0] === treeId); return e ? e[1] : "?"; };
 
+  // Level-1 create recipe(s): make it directly (raw mats) and/or from another weapon.
+  function createRecipeHtml(c, id, data) {
+    const cr = data.create && data.create[id];
+    if (!cr) return '<div class="detail-note">No create recipe (event / relic weapon).</div>';
+    let h = "";
+    if (cr.d) h += `<div class="mat-step">Create directly</div>${matPairsHtml(cr.d, data.mats)}`;
+    if (cr.f) {
+      const [sid, slv, fm] = cr.f;
+      const prefix = cr.d ? "Or upgrade from " : "Upgrade from ";
+      h += `<div class="mat-step">${prefix}${escapeHtml(weaponTreeName(c, sid))} · LV ${slv}</div>${matPairsHtml(fm, data.mats)}`;
+    }
+    return h;
+  }
   function weaponMaterialsHtml(c, id, data) {
     const rec = data.byId[String(id)];
-    if (!rec) return "";                       // non-craftable (relic/event) — show nothing
+    if (!rec && !(data.create && data.create[id])) return "";   // no craft data at all
     const mats = data.mats, max = maxLevelOf(c, id);
-    // Upgrade tab only makes sense when the weapon is made from another (has a parent);
-    // for a root weapon it would equal Create, so it's hidden.
-    const hasChain = !!(data.parents && data.parents[id]);
-    let tab = matTab;
-    if (tab === "upgrade" && !hasChain) tab = "create";   // graceful fallback on root weapons
     let body;
-    if (tab === "create") {
-      // Full from-scratch cost of this weapon alone (assumes you have the prerequisite).
-      body = `<div class="mat-step">Total Materials Required · LV 1-${max}</div>${matNameListHtml(sumTreeMats(data, id, max))}`;
-    } else if (tab === "upgrade") {
-      // Full chain from a base weapon, min-leveling each predecessor to its branch point.
-      body = buildChain(data, id, max).map(s => {
-        const isT = s.treeId === id;
-        return `<div class="mat-step">${escapeHtml(weaponTreeName(c, s.treeId))} · LV 1-${s.hi}${isT ? " (final)" : " (branch point)"}</div>${matNameListHtml(sumTreeMats(data, s.treeId, s.hi))}`;
-      }).join("");
+    if (matTab === "create") {
+      body = createRecipeHtml(c, id, data);
+    } else if (matTab === "upgrade") {
+      // Materials to upgrade from the current owned level to max; not owned = all upgrades.
+      const start = isOwned(c, id) && ownedLevel(c, id) > 0 ? ownedLevel(c, id) : 1;
+      if (max <= 1) body = '<div class="detail-note">This weapon has no upgrades.</div>';
+      else if (start >= max) body = '<div class="detail-note">Fully upgraded — no upgrades left.</div>';
+      else {
+        const merge = new Map();
+        for (let L = start + 1; L <= max; L++) { const p = rec && rec[L]; if (!p) continue; for (const [mi, q] of p) { const n = mats[mi]; merge.set(n, (merge.get(n) || 0) + q); } }
+        const label = isOwned(c, id) && ownedLevel(c, id) > 0 ? `From LV ${start} → ${max}` : `All upgrades · LV 1 → ${max}`;
+        body = `<div class="mat-step">${label}</div>${matNameListHtml(merge)}`;
+      }
     } else {
       // Next Level — relative to what you own.
       const ref = refLevelOf(c, id);
       if (max > 0 && ref >= max) body = `<div class="detail-note">Fully upgraded — no materials needed.</div>`;
       else {
         const nl = ref + 1, label = ref === 0 ? "Create (LV 1)" : `Upgrade to LV ${nl}`;
-        body = `<div class="mat-step">${label}</div>${matPairsHtml(rec[nl], mats)}`;
+        body = `<div class="mat-step">${label}</div>${matPairsHtml(rec && rec[nl], mats)}`;
       }
     }
-    const upgradeBtn = hasChain ? `<button class="mat-tab ${tab === "upgrade" ? "active" : ""}" data-tab="upgrade">Upgrade</button>` : "";
     return `<div class="detail-section-title">Crafting materials</div>
       <div class="mat-tabs" data-role="mattabs">
-        <button class="mat-tab ${tab === "next" ? "active" : ""}" data-tab="next">Next Level</button>
-        <button class="mat-tab ${tab === "create" ? "active" : ""}" data-tab="create">Create</button>
-        ${upgradeBtn}
+        <button class="mat-tab ${matTab === "next" ? "active" : ""}" data-tab="next">Next Level</button>
+        <button class="mat-tab ${matTab === "create" ? "active" : ""}" data-tab="create">Create</button>
+        <button class="mat-tab ${matTab === "upgrade" ? "active" : ""}" data-tab="upgrade">Upgrade</button>
       </div><div class="mat-body">${body}</div>`;
   }
   // Single Create recipe (armor, palico weapon, palico armor head/body).
