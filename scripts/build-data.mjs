@@ -373,6 +373,8 @@ if (!db) {
     if (!palicoArmorItemId.has(r.name)) palicoArmorItemId.set(r.name, r.id);
   // weapon upgrade lineage: db item id -> parent db item id (0 = root, made from raw mats)
   const parentById = new Map(db.prepare('SELECT _id, parent_id FROM weapons').all().map(r => [r._id, r.parent_id]));
+  // level-1 recipe components (for the Create tab): direct create + from-another-weapon
+  const lvl1CompStmt = db.prepare('SELECT c.type type, c.key key, ci.type ctype, ci.name name, c.quantity q, c.component_item_id comp FROM components c JOIN items ci ON ci._id=c.component_item_id WHERE c.created_item_id = ?');
 
   // Intern material names per output file to keep them compact.
   const makeInterner = () => { const mats = [], idx = new Map(); return {
@@ -406,14 +408,33 @@ if (!db) {
       const levels = stats[String(entry[0])]; if (!levels) continue;
       for (const l of levels) { const gid = weaponItemId.get(`${wtype} ${l.n} ${l.lv}`); if (gid != null) idToTree.set(gid, [entry[0], l.lv]); }
     }
-    const parents = {};
+    // parents[treeId]=[parentTreeId,branchLevel]; create[treeId]={d:[[mi,q]] direct, f:[srcTreeId,srcLevel,[[mi,q]]] from-another}
+    const parents = {}, create = {};
     for (const entry of catalog.weapons[cls.slug].entries) {
       const levels = stats[String(entry[0])]; if (!levels) continue;
       const lvl1 = weaponItemId.get(`${wtype} ${levels[0].n} ${levels[0].lv}`);
-      const pid = lvl1 != null ? parentById.get(lvl1) : 0;
+      if (lvl1 == null) continue;
+      const pid = parentById.get(lvl1);
       if (pid && idToTree.has(pid)) parents[entry[0]] = idToTree.get(pid);
+      const comps = lvl1CompStmt.all(lvl1);
+      const cr = {};
+      const createC = comps.filter(x => x.type === 'Create');
+      if (createC.length) {
+        const k = Math.min(...createC.map(x => x.key));
+        const d = createC.filter(x => x.key === k && !EQUIP_TYPES.has(x.ctype)).map(x => [intern.id(x.name), x.q]);
+        if (d.length) cr.d = d;
+      }
+      const improveC = comps.filter(x => x.type === 'Improve');
+      if (improveC.length) {
+        const k = Math.min(...improveC.map(x => x.key));
+        const grp = improveC.filter(x => x.key === k);
+        const srcComp = grp.find(x => EQUIP_TYPES.has(x.ctype));
+        const fmats = grp.filter(x => !EQUIP_TYPES.has(x.ctype)).map(x => [intern.id(x.name), x.q]);
+        if (srcComp && idToTree.has(srcComp.comp)) { const s = idToTree.get(srcComp.comp); cr.f = [s[0], s[1], fmats]; }
+      }
+      if (cr.d || cr.f) create[entry[0]] = cr;
     }
-    writeFileSync(join(OUT_MATERIALS, cls.slug + '.json'), JSON.stringify({ mats: intern.mats, byId, parents }));
+    writeFileSync(join(OUT_MATERIALS, cls.slug + '.json'), JSON.stringify({ mats: intern.mats, byId, parents, create }));
   }
   // Armor — per piece (Create recipe)
   for (const slot of ARMOR_SLOTS) {
