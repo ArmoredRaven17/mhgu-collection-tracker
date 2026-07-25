@@ -374,16 +374,21 @@
     const dataByFile = {};
     await Promise.all(files.map(f => loadMaterials(f).then(d => { dataByFile[f] = d; }).catch(() => { dataByFile[f] = null; })));
     if (token !== materialsViewToken) return;   // a newer render superseded this one
-    grid.innerHTML = items.map(it => materialsRowHtml(it.cat, it.id, it, dataByFile[it.cat.statsFile])).join("");
+    const note = items.some(it => it.kind === "w")
+      ? '<div class="mat-view-note">Lists show <b>upgrade</b> materials only. A weapon\'s creation cost — it can have several creation paths — is on the weapon\'s own entry.</div>'
+      : "";
+    grid.innerHTML = note + items.map(it => materialsRowHtml(it.cat, it.id, it, dataByFile[it.cat.statsFile])).join("");
   }
   function materialsRowHtml(c, id, it, data) {
     let bodyHtml = "", complete = false;
     const max = maxLevelOf(c, id), owned = isOwned(c, id);
     if (c.kind === "w") {
-      if (owned && (max === 0 || ownedLevel(c, id) >= max)) complete = true;
+      // Upgrade materials only (creation cost excluded — see the weapon's entry). Range = current level → max.
+      const start = owned && ownedLevel(c, id) > 0 ? ownedLevel(c, id) : 1;
+      if (owned && (max <= 1 || ownedLevel(c, id) >= max)) complete = true;
       else if (!data || !data.byId[String(id)]) bodyHtml = '<div class="detail-note">No material data.</div>';
-      else if (owned) bodyHtml = matNameListHtml(sumTreeMats(data, id, max, refLevelOf(c, id) + 1)); // remaining levels
-      else bodyHtml = matNameListHtml(chainAggregate(data, id, max));                                 // full from-scratch chain
+      else if (max <= 1) bodyHtml = '<div class="detail-note">No upgrades (create only).</div>';
+      else bodyHtml = `<div class="mat-step">Upgrades · LV ${start} → ${max}</div>${matNameListHtml(sumTreeMats(data, id, max, start + 1))}`;
     } else {
       if (owned) complete = true;                 // armor/palico have no levels → owned == done
       else {
