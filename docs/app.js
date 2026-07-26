@@ -415,9 +415,28 @@
       <div class="mat-view-body">${bodyHtml}</div></div>`;
   }
 
+  // The level-based Show filters only mean something for weapons (armor/palico have no
+  // levels, so owned == maxed). Disable them elsewhere, falling back to "All" if active.
+  function updateLevelFilterAvailability() {
+    const enabled = current.kind === "w" || (filters.searchAll && !!filters.text);
+    let reset = false;
+    for (const v of ["maxed", "partial"]) {
+      const r = document.querySelector(`input[name="ownedFilter"][value="${v}"]`);
+      if (!r) continue;
+      r.disabled = !enabled;
+      if (!enabled && r.checked) reset = true;
+    }
+    if (reset) {
+      filters.owned = "all";
+      const all = document.querySelector('input[name="ownedFilter"][value="all"]');
+      if (all) all.checked = true;
+    }
+    return reset;
+  }
   function selectCategory(c) {
     current = c;
     selectedId = null;
+    updateLevelFilterAvailability();
     document.querySelectorAll(".cat-row").forEach(r => r.classList.toggle("active", r.dataset.cat === catId(c)));
     $("catTitle").textContent = c.label;
     renderGrid();
@@ -864,9 +883,9 @@
   let searchTimer = null;
   $("searchInput").addEventListener("input", function () {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { filters.text = this.value.trim(); renderGrid(); updateSearchTitle(); }, 120);
+    searchTimer = setTimeout(() => { filters.text = this.value.trim(); updateLevelFilterAvailability(); renderGrid(); updateSearchTitle(); }, 120);
   });
-  $("searchAll").addEventListener("change", function () { filters.searchAll = this.checked; renderGrid(); updateSearchTitle(); });
+  $("searchAll").addEventListener("change", function () { filters.searchAll = this.checked; updateLevelFilterAvailability(); renderGrid(); updateSearchTitle(); });
   document.querySelectorAll('input[name="ownedFilter"]').forEach(r =>
     r.addEventListener("change", function () { if (this.checked) { filters.owned = this.value; renderGrid(); } }));
   $("sortSelect").addEventListener("change", function () { filters.sort = this.value; renderGrid(); });
