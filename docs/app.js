@@ -315,6 +315,11 @@
       const has = owned.get(`${it.kind}:${it.key}`).has(it.id);
       if (filters.owned === "owned" && !has) return false;
       if (filters.owned === "missing" && has) return false;
+      if (filters.owned === "maxed") {                 // Fully Upgraded: owned at max level
+        if (!has) return false;
+        const mx = maxLevelOf(it.cat, it.id);
+        if (mx > 0 && ownedLevel(it.cat, it.id) < mx) return false;
+      }
     }
     return true;
   }
