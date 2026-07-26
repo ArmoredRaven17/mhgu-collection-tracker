@@ -79,6 +79,9 @@ body{
 .chk{display:flex;align-items:center;gap:8px;padding:2px 0;cursor:pointer;line-height:1.3}
 .chk input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex-shrink:0}
 .chk:hover{color:var(--accent-hover)}
+.chk:has(input:disabled){opacity:.4;cursor:default}
+.chk:has(input:disabled):hover{color:inherit}
+.chk input:disabled{cursor:default}
 .filter-group{margin-bottom:10px}
 .filter-group:last-child{margin-bottom:0}
 .filter-label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.7;margin-bottom:4px}
