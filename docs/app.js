@@ -320,6 +320,11 @@
         const mx = maxLevelOf(it.cat, it.id);
         if (mx > 0 && ownedLevel(it.cat, it.id) < mx) return false;
       }
+      if (filters.owned === "partial") {               // Owned but not yet at max level
+        if (!has) return false;
+        const mx = maxLevelOf(it.cat, it.id);
+        if (mx <= 0 || ownedLevel(it.cat, it.id) >= mx) return false;
+      }
     }
     return true;
   }
