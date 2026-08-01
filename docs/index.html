@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MHGU Collection Tracker</title>
 <link rel="icon" type="image/png" href="assets/icons/icon_armor_body_r1.png">
-<link rel="stylesheet" href="styles.css?v=25">
+<link rel="stylesheet" href="styles.css?v=26">
 </head>
 <body>
 <div id="app">
@@ -19,7 +19,7 @@
     <button id="saveAsBtn" class="btn tiny">Save As…</button>
     <button id="openBtn"   class="btn tiny">Open…</button>
     <input type="file" id="importFile" accept=".json,application/json" class="hidden">
-    <button id="themeBtn" class="icon-btn" title="Theme" aria-label="Theme">&#9881;</button>
+    <button id="themeBtn" class="icon-btn" title="Settings" aria-label="Settings">&#9881;</button>
     <button id="aboutBtn" class="icon-btn" title="About / Attributions" aria-label="About">&#9432;</button>
   </header>
 
@@ -28,15 +28,6 @@
     <aside class="sidebar">
       <input type="search" id="searchInput" class="search-input" placeholder="Search equipment…" autocomplete="off">
       <label class="chk search-all"><input type="checkbox" id="searchAll"><span>Search all categories</span></label>
-
-      <div class="panel storage-panel" data-open="false">
-        <button class="panel-head"><span>Storage</span><span class="chev">▾</span></button>
-        <div class="panel-body">
-          <label class="chk"><input type="checkbox" id="localSaveToggle" checked><span>Save in this browser</span></label>
-          <div class="hint">Keeps your collection here so it loads automatically. Use Save to a file for backups or another device.</div>
-          <button id="clearLocalBtn" class="btn tiny">Clear browser save</button>
-        </div>
-      </div>
 
       <div class="panel filters-panel" data-open="true">
         <button class="panel-head"><span>Filters</span><span class="chev">▾</span></button>
@@ -120,11 +111,45 @@
   </div>
 </div>
 
-<!-- Theme dialog -->
+<!-- Settings dialog -->
 <div id="themeModal" class="modal hidden">
   <div class="modal-card">
-    <h2>Theme</h2>
-    <div id="swatches" class="swatches"></div>
+    <h2>Settings</h2>
+
+    <div class="set-section">
+      <div class="set-title">Storage</div>
+      <div class="set-row">
+        <div class="set-label">Save in this browser
+          <span class="set-hint">Keeps your collection here so it loads automatically. Use Save to a file for backups or another device.</span></div>
+        <button type="button" class="toggle" id="localSaveToggle" role="switch" aria-checked="true" aria-label="Save in this browser"></button>
+      </div>
+      <button id="clearLocalBtn" class="btn tiny">Clear browser save</button>
+    </div>
+
+    <div class="set-section">
+      <div class="set-title">Interaction</div>
+      <div class="set-row">
+        <div class="set-label">Click to increase level
+          <span class="set-hint">Clicking an open weapon again raises its level. Off: clicks only mark it owned.</span></div>
+        <button type="button" class="toggle" id="clickLevelToggle" role="switch" aria-checked="true" aria-label="Click to increase level"></button>
+      </div>
+      <div class="set-row">
+        <div class="set-label">Ctrl + Click to remove
+          <span class="set-hint">Un-owns a piece of equipment.</span></div>
+        <button type="button" class="toggle" id="ctrlRemoveToggle" role="switch" aria-checked="true" aria-label="Ctrl click to remove"></button>
+      </div>
+      <div class="set-row">
+        <div class="set-label">Alt + Click to fully upgrade
+          <span class="set-hint">Marks a piece owned at its max level in one click.</span></div>
+        <button type="button" class="toggle" id="altMaxToggle" role="switch" aria-checked="true" aria-label="Alt click to fully upgrade"></button>
+      </div>
+    </div>
+
+    <div class="set-section">
+      <div class="set-title">Theme</div>
+      <div id="swatches" class="swatches"></div>
+    </div>
+
     <div class="row end gap">
       <button id="themeClose" class="btn">Close</button>
     </div>
@@ -142,6 +167,6 @@
 <div id="toast" class="toast hidden"></div>
 
 <script src="data/catalog.js?v=5"></script>
-<script src="app.js?v=36"></script>
+<script src="app.js?v=37"></script>
 </body>
 </html>
