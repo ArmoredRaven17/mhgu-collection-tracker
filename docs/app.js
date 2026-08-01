@@ -8,6 +8,7 @@
   const SAVE_APP = "mhgu-collection-tracker";
   const SAVE_VERSION = 2;   // v2 adds per-item upgrade levels
   const SAVE_KEY = "mhgu-tracker-autosave";   // localStorage key (kept for existing sessions)
+  const LOCAL_ENABLED_KEY = "mhgu-tracker-local";   // "0" opts out of browser storage
   const THEME_KEY = "mhgu-tracker-theme";
 
   const SHARP_COLORS = ["#c0392b", "#e08a2b", "#d9cf1f", "#4caf50", "#4a90d0", "#eeeeee", "#a05ad0"];
@@ -71,6 +72,8 @@
   let sharpBand = 0;            // 0=base 1=+1 2=+2
   let matTab = "next";         // materials tab: "next" | "all"
   let openMaterials = null;    // resolved materials data for the currently-open item
+  let localSaveEnabled = true;  // keep the collection in this browser (opt-out)
+  try { localSaveEnabled = localStorage.getItem(LOCAL_ENABLED_KEY) !== "0"; } catch (e) {}
   let viewMode = "grid";       // "grid" | "list"
   try { viewMode = localStorage.getItem("mhgu-tracker-view") || "grid"; } catch (e) {}
 
@@ -116,10 +119,12 @@
 
   let saveTimer = null;
   function scheduleSave() {
+    if (!localSaveEnabled) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(persistCollection, 500);
   }
   function persistCollection() {
+    if (!localSaveEnabled) return;
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(serializeSave())); }
     catch (e) { toast("Could not save to this browser (storage full or blocked)."); }
   }
@@ -860,6 +865,13 @@
   $("exportBtn").addEventListener("click", () => exportBackup());
   $("importBtn").addEventListener("click", () => importBackup());
 
+  window.addEventListener("beforeunload", () => {
+    if (!localSaveEnabled) return;
+    // Flush any debounced write so a close right after a change isn't lost.
+    clearTimeout(saveTimer);
+    persistCollection();
+  });
+
   // ── Search / filter wiring ─────────────────────────────────────────────
   let searchTimer = null;
   $("searchInput").addEventListener("input", function () {
@@ -951,14 +963,43 @@
   $("themeClose").addEventListener("click", () => $("themeModal").classList.add("hidden"));
   $("themeModal").addEventListener("click", e => { if (e.target.id === "themeModal") $("themeModal").classList.add("hidden"); });
 
-  // ── Load collection from this browser ──────────────────────────────────
-  function loadFromLocalStorage() {
-    let raw; try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { return; }
-    if (!raw) return;
-    let obj; try { obj = JSON.parse(raw); } catch (e) { return; }
-    if (validateSave(obj)) return;
+  // ── Browser storage ────────────────────────────────────────────────────
+  // Read the browser-stored collection, if it holds anything usable.
+  function readLocalSave() {
+    let raw; try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { return null; }
+    if (!raw) return null;
+    let obj; try { obj = JSON.parse(raw); } catch (e) { return null; }
+    if (validateSave(obj)) return null;
+    const hasAny = obj.owned && ["w", "a", "p"].some(k => obj.owned[k] && Object.values(obj.owned[k]).some(a => a.length));
+    return hasAny ? obj : null;
+  }
+  // With browser storage on, the collection loads straight away.
+  function loadFromBrowser() {
+    if (!localSaveEnabled) return;
+    const obj = readLocalSave();
+    if (!obj) return;
     applySave(obj);
   }
+  $("localSaveToggle").checked = localSaveEnabled;
+  $("localSaveToggle").addEventListener("change", function () {
+    localSaveEnabled = this.checked;
+    try {
+      localStorage.setItem(LOCAL_ENABLED_KEY, localSaveEnabled ? "1" : "0");
+      if (localSaveEnabled) scheduleSave();               // start keeping it now
+      else localStorage.removeItem(SAVE_KEY);             // opting out clears the stored copy
+    } catch (e) {}
+    toast(localSaveEnabled ? "Saving your collection in this browser." : "Browser save turned off and cleared.");
+  });
+  $("clearLocalBtn").addEventListener("click", () => {
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+    toast("Browser save cleared.");
+    if (localSaveEnabled) persistCollection();           // still on → immediately re-store current state
+  });
+  // Collapsible sidebar panels (Storage / Filters)
+  document.querySelectorAll(".panel > .panel-head").forEach(h => h.addEventListener("click", () => {
+    const p = h.parentElement;
+    p.dataset.open = p.dataset.open === "true" ? "false" : "true";
+  }));
 
   // ── Init ───────────────────────────────────────────────────────────────
   buildSidebar();
@@ -969,7 +1010,7 @@
   applyTheme(savedTheme);
   $("viewToggle").querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.view === viewMode));
   selectCategory(CATS[0]);
-  loadFromLocalStorage();
+  loadFromBrowser();
   updateProgress();
 
   // Custom-font repaint fix (selects/text can clip before the font loads)

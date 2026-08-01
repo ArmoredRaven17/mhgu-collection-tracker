@@ -28,6 +28,15 @@
       <input type="search" id="searchInput" class="search-input" placeholder="Search equipment…" autocomplete="off">
       <label class="chk search-all"><input type="checkbox" id="searchAll"><span>Search all categories</span></label>
 
+      <div class="panel storage-panel" data-open="false">
+        <button class="panel-head"><span>Storage</span><span class="chev">▾</span></button>
+        <div class="panel-body">
+          <label class="chk"><input type="checkbox" id="localSaveToggle" checked><span>Save in this browser</span></label>
+          <div class="hint">Keeps your collection here so it loads automatically. Use Export / Import for backups or another device.</div>
+          <button id="clearLocalBtn" class="btn tiny">Clear browser save</button>
+        </div>
+      </div>
+
       <div class="panel filters-panel" data-open="true">
         <button class="panel-head"><span>Filters</span><span class="chev">▾</span></button>
         <div class="panel-body">
@@ -126,6 +135,6 @@
 <div id="toast" class="toast hidden"></div>
 
 <script src="data/catalog.js?v=4"></script>
-<script src="app.js?v=35"></script>
+<script src="app.js?v=36"></script>
 </body>
 </html>

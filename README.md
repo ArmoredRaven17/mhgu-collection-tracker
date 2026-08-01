@@ -14,9 +14,11 @@ checkbox and full stats for each entry.
   weapons, defense/resistances/skills for armor.
 - Ctrl+click a cell to toggle owned without opening the detail panel.
 - Progress tracking per category and overall.
-- **Browser saves by default** — your collection is stored in localStorage and
-  restored automatically on the next visit. Export / Import JSON remains available
-  as a backup (switch browsers/devices, or recover after clearing site data).
+- **Saved in your browser** — your collection is kept in this browser and loads
+  automatically, so there's nothing to open each visit. Turn it off (and clear
+  it) any time under **Storage** in the sidebar.
+- **Export / Import backup** — download or restore a JSON file for backups or to
+  move the collection to another device.
 
 ## Local development
 
