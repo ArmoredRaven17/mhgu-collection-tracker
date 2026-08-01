@@ -9,6 +9,7 @@
   const SAVE_VERSION = 2;   // v2 adds per-item upgrade levels
   const AUTOSAVE_KEY = "mhgu-tracker-autosave";
   const LOCAL_ENABLED_KEY = "mhgu-tracker-local";   // "0" opts out of browser storage
+  const SETTINGS_KEY = "mhgu-tracker-settings";
   const THEME_KEY = "mhgu-tracker-theme";
 
   const SHARP_COLORS = ["#c0392b", "#e08a2b", "#d9cf1f", "#4caf50", "#4a90d0", "#eeeeee", "#a05ad0"];
@@ -76,6 +77,10 @@
   let openMaterials = null;    // resolved materials data for the currently-open item
   let localSaveEnabled = true;  // keep the collection in this browser (opt-out)
   try { localSaveEnabled = localStorage.getItem(LOCAL_ENABLED_KEY) !== "0"; } catch (e) {}
+  // Interaction settings (all opt-out; see the Settings dialog)
+  const settings = { clickLevel: true, ctrlRemove: true, altMax: true };
+  try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")); } catch (e) {}
+  const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} };
   let viewMode = "grid";       // "grid" | "list"
   try { viewMode = localStorage.getItem("mhgu-tracker-view") || "grid"; } catch (e) {}
 
@@ -147,6 +152,12 @@
   function setLevel(c, id, lv) {
     const m = ownedMapOf(c);
     if (m.has(id) && m.get(id) === lv) m.delete(id); else m.set(id, lv);
+    afterOwnedChange(c, id);
+  }
+  // Alt+click shortcut: own the piece outright at its top level (level-less gear just owned).
+  function setMaxOwned(c, id) {
+    const max = maxLevelOf(c, id);
+    ownedMapOf(c).set(id, max > 0 ? max : 0);
     afterOwnedChange(c, id);
   }
   // Quick-level a weapon by clicking its cell: unowned → owned → LV1 → … → max, then stop.
@@ -463,11 +474,12 @@
     if (!cell) return;
     const c = catByIdMap.get(cell.dataset.cat);
     const id = Number(cell.dataset.id);
-    if (ev.ctrlKey || ev.metaKey) { toggleOwned(c, id); return; }
+    if (ev.altKey && settings.altMax) { setMaxOwned(c, id); return; }
+    if ((ev.ctrlKey || ev.metaKey) && settings.ctrlRemove) { toggleOwned(c, id); return; }
     const alreadyOpen = selectedId === id && current === c;
     if (alreadyOpen) {
       // repeat click on the open piece: weapons level up; armor/palico mark owned
-      if (c.kind === "w") advanceWeapon(c, id);
+      if (c.kind === "w" && settings.clickLevel) advanceWeapon(c, id);
       else if (!isOwned(c, id)) toggleOwned(c, id);   // (already-owned = no-op; ctrl+click un-owns)
     } else {
       document.querySelectorAll(".box-cell.selected, .list-row.selected").forEach(x => x.classList.remove("selected"));
@@ -1022,9 +1034,18 @@
     $("restoreYes").addEventListener("click", () => { applySave(obj); clearDirty(); $("restoreBanner").classList.add("hidden"); });
     $("restoreNo").addEventListener("click", () => $("restoreBanner").classList.add("hidden"));
   }
-  $("localSaveToggle").checked = localSaveEnabled;
-  $("localSaveToggle").addEventListener("change", function () {
-    localSaveEnabled = this.checked;
+  // Toggle switches (role="switch" buttons rather than checkboxes)
+  function bindToggle(id, get, set) {
+    const el = $(id);
+    const sync = () => el.setAttribute("aria-checked", get() ? "true" : "false");
+    sync();
+    el.addEventListener("click", () => { set(!get()); sync(); });
+  }
+  bindToggle("clickLevelToggle", () => settings.clickLevel, v => { settings.clickLevel = v; saveSettings(); });
+  bindToggle("ctrlRemoveToggle", () => settings.ctrlRemove, v => { settings.ctrlRemove = v; saveSettings(); });
+  bindToggle("altMaxToggle", () => settings.altMax, v => { settings.altMax = v; saveSettings(); });
+  bindToggle("localSaveToggle", () => localSaveEnabled, v => {
+    localSaveEnabled = v;
     try {
       localStorage.setItem(LOCAL_ENABLED_KEY, localSaveEnabled ? "1" : "0");
       if (localSaveEnabled) scheduleAutosave();          // start keeping it now
@@ -1037,7 +1058,7 @@
     toast("Browser save cleared.");
     if (localSaveEnabled) scheduleAutosave();            // still on → immediately re-store current state
   });
-  // Collapsible sidebar panels (Storage / Filters)
+  // Collapsible sidebar panels
   document.querySelectorAll(".panel > .panel-head").forEach(h => h.addEventListener("click", () => {
     const p = h.parentElement;
     p.dataset.open = p.dataset.open === "true" ? "false" : "true";
