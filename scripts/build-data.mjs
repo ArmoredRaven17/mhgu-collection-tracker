@@ -175,11 +175,21 @@ for (const cls of WEAPON_CLASSES) {
     const name = names[id];
     const tree = treeByBase.get(name);
     let finalName = 0, maxLevel = 0;
+    const stages = [];   // [level, name] each time the weapon is renamed after LV1
     if (tree && tree.levels.length) {
       const last = tree.levels[tree.levels.length - 1];
       const lastName = fixMojibake(last.name);
       if (lastName && lastName !== name) finalName = lastName;
       maxLevel = last.level;
+      // Later forms keep the base name's "(DUMMY)" tag implicitly — strip it so the
+      // rename chain reads "Starlight Gate (DUMMY) → Infinity Gate".
+      const tidy = s => s.replace(/\s*\(DUMMY\)\s*$/i, "").trim();
+      let prevName = name;
+      for (const l of tree.levels) {
+        const n = fixMojibake(l.name);
+        if (n && n !== prevName) { stages.push([l.level, tidy(n)]); prevName = n; }
+      }
+      if (finalName) finalName = tidy(finalName);
       byId[id] = tree.levels.map(l => {
         const lv = { n: fixMojibake(l.name), lv: l.level, raw: l.raw, aff: l.affinity || 0, def: l.defense || 0, slots: l.slots, rar: l.rarity };
         const ele = normElements(l); if (ele.length) lv.ele = ele;
@@ -194,7 +204,7 @@ for (const cls of WEAPON_CLASSES) {
     // "(DUMMY)" (matching how Kiranico already tags e.g. Twin Star Blades).
     let displayName = name;
     if (!tree && !/\(DUMMY\)/i.test(name)) { displayName = `${name} (DUMMY)`; dummyWeapons++; }
-    entries.push([Number(id), displayName, rar[id] || 0, finalName, maxLevel]);
+    entries.push([Number(id), displayName, rar[id] || 0, finalName, maxLevel, stages]);
   }
   catalog.weapons[cls.slug] = { label: cls.name, icon: cls.slug, entries };
   counts.weapons += entries.length;
