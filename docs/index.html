@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MHGU Collection Tracker</title>
 <link rel="icon" type="image/png" href="assets/icons/icon_armor_body_r1.png">
-<link rel="stylesheet" href="styles.css?v=23">
+<link rel="stylesheet" href="styles.css?v=24">
 </head>
 <body>
 <div id="app">
@@ -28,6 +28,15 @@
     <aside class="sidebar">
       <input type="search" id="searchInput" class="search-input" placeholder="Search equipment…" autocomplete="off">
       <label class="chk search-all"><input type="checkbox" id="searchAll"><span>Search all categories</span></label>
+
+      <div class="panel storage-panel" data-open="false">
+        <button class="panel-head"><span>Storage</span><span class="chev">▾</span></button>
+        <div class="panel-body">
+          <label class="chk"><input type="checkbox" id="localSaveToggle" checked><span>Save in this browser</span></label>
+          <div class="hint">Keeps your collection here so it loads automatically. Use Save to a file for backups or another device.</div>
+          <button id="clearLocalBtn" class="btn tiny">Clear browser save</button>
+        </div>
+      </div>
 
       <div class="panel filters-panel" data-open="true">
         <button class="panel-head"><span>Filters</span><span class="chev">▾</span></button>
@@ -133,6 +142,6 @@
 <div id="toast" class="toast hidden"></div>
 
 <script src="data/catalog.js?v=4"></script>
-<script src="app.js?v=34"></script>
+<script src="app.js?v=35"></script>
 </body>
 </html>
