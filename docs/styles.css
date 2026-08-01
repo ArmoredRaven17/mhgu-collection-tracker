@@ -256,6 +256,8 @@ body{
 .stat-row .k{opacity:.7}
 .stat-row .v{font-variant-numeric:tabular-nums;text-align:right}
 .lvl-hint{font-size:11px;opacity:.6;margin:2px 0 6px}
+.stage-lv{font-size:9px;opacity:.55;vertical-align:super;margin-left:2px}
+.lvl-rename td{font-size:11px;opacity:.7;font-style:italic;padding-top:5px;color:var(--accent-hover)}
 .lvl-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
 .lvl-table th{text-align:left;opacity:.6;font-weight:600;padding:2px 6px 4px 0;font-size:11px}
 .lvl-table td{padding:3px 6px 3px 0;vertical-align:middle;border-top:1px solid #ffffff0d}

@@ -289,9 +289,15 @@
   }
 
   // ── Grid rendering ─────────────────────────────────────────────────────
+  // Every name a weapon goes by across its upgrade chain (base + each rename).
+  const entryNames = (kind, entry) => kind === "w"
+    ? [entry[1], ...(entry[5] || []).map(s => s[1])].filter(Boolean)
+    : [entry[1]];
   function normalize(c, entry) {
     return { kind: c.kind, key: c.key, cat: c, id: entry[0], name: entry[1], rar: entry[2] || 0,
-      final: c.kind === "w" ? entry[3] : 0, armorClass: c.kind === "a" ? (entry[7] || "A") : "",
+      final: c.kind === "w" ? entry[3] : 0, stages: c.kind === "w" ? (entry[5] || []) : [],
+      names: entryNames(c.kind, entry),
+      armorClass: c.kind === "a" ? (entry[7] || "A") : "",
       iconSlug: c.iconSlug };
   }
   function currentItems() {
@@ -300,7 +306,7 @@
       const out = [];
       for (const c of CATS)
         for (const e of c.entries)
-          if (e[1].toLowerCase().includes(q) || (c.kind === "w" && e[3] && String(e[3]).toLowerCase().includes(q)))
+          if (entryNames(c.kind, e).some(n => n.toLowerCase().includes(q)))
             out.push(normalize(c, e));
       return out;
     }
@@ -312,7 +318,7 @@
     if (it.kind === "a" && filters.armorClass !== "all" && it.armorClass !== "A" && it.armorClass !== filters.armorClass) return false;
     if (filters.text && !filters.searchAll) {
       const q = filters.text.toLowerCase();
-      if (!it.name.toLowerCase().includes(q) && !(it.final && String(it.final).toLowerCase().includes(q))) return false;
+      if (!it.names.some(n => n.toLowerCase().includes(q))) return false;
     }
     if (it.rar >= 1 && !filters.rarity.has(it.rar)) return false;
     if (filters.owned !== "all") {
@@ -492,9 +498,12 @@
   }
   function detailHead(c, entry) {
     const name = entry[1];
-    const final = c.kind === "w" ? entry[3] : 0;
     let title = escapeHtml(name);
-    if (final) title += ` <span style="opacity:.6">→</span> ${escapeHtml(final)}`;
+    if (c.kind === "w") {
+      // Full rename chain, e.g. Petrified Blade → Scholarly Blade → Sophos Blade
+      for (const [lv, n] of (entry[5] || []))
+        title += ` <span style="opacity:.6">→</span> ${escapeHtml(n)}<span class="stage-lv">LV${lv}</span>`;
+    }
     let sub = "";
     if (c.kind === "a") {
       const femaleName = entry[6];
@@ -564,9 +573,15 @@
     const levels = data.byId[String(id)];
     if (!levels || !levels.length) return '<div class="detail-note">No detailed stats for this weapon.</div>';
     const anySharp = levels.some(l => l.sh);
+    let prevName = null;
     const rows = levels.map(l => {
       const sharp = l.sh ? sharpBarHtml(l.sh, sharpBand) : "";
-      return `<tr class="lvl-row" data-lv="${l.lv}">
+      // Flag the level where the weapon takes a new name
+      const renamed = prevName !== null && l.n !== prevName;
+      prevName = l.n;
+      const nameRow = renamed
+        ? `<tr class="lvl-rename"><td></td><td colspan="9">becomes ${escapeHtml(l.n)}</td></tr>` : "";
+      return `${nameRow}<tr class="lvl-row" data-lv="${l.lv}">
         <td class="lvl-own"></td>
         <td>${l.lv}</td><td>${l.raw}</td><td>${l.aff ? (l.aff > 0 ? "+" : "") + l.aff + "%" : "—"}</td>
         <td>${eleText(l.ele)}</td><td>${escapeHtml(l.slots || "")}</td>
