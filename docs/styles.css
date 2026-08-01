@@ -115,6 +115,8 @@ body{
   background-size:contain 100%;background-position:left center;background-repeat:repeat;
 }
 .panel[data-open="true"] .panel-body{display:flex}
+.panel-body .hint{font-size:11px;opacity:.7;line-height:1.4;margin:2px 0 8px}
+.storage-panel .btn.tiny{align-self:flex-start}
 
 /* Category tree */
 .cat-tree{display:flex;flex-direction:column;gap:6px}
