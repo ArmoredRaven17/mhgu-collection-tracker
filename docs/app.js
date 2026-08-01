@@ -7,7 +7,7 @@
 
   const SAVE_APP = "mhgu-collection-tracker";
   const SAVE_VERSION = 2;   // v2 adds per-item upgrade levels
-  const AUTOSAVE_KEY = "mhgu-tracker-autosave";
+  const SAVE_KEY = "mhgu-tracker-autosave";   // localStorage key (kept for existing sessions)
   const THEME_KEY = "mhgu-tracker-theme";
 
   const SHARP_COLORS = ["#c0392b", "#e08a2b", "#d9cf1f", "#4caf50", "#4a90d0", "#eeeeee", "#a05ad0"];
@@ -66,8 +66,6 @@
   for (const c of CATS) owned.set(catId(c), new Map());
   const unknownOwned = { w: {}, a: {}, p: {} };   // preserved unknown ids, re-exported verbatim
   const unknownLevels = { w: {}, a: {}, p: {} };  // preserved levels for unknown ids
-  let dirty = false;
-  let fileHandle = null;
   let current = CATS[0];
   let selectedId = null;
   let sharpBand = 0;            // 0=base 1=+1 2=+2
@@ -113,21 +111,17 @@
     try { return await p; } catch (e) { materialsCache.delete(file); return null; }
   }
 
-  // ── Dirty tracking ─────────────────────────────────────────────────────
-  function markDirty() {
-    if (!dirty) { dirty = true; $("dirtyDot").classList.remove("hidden"); document.title = "● MHGU Collection Tracker"; }
-    scheduleAutosave();
-  }
-  function clearDirty() {
-    dirty = false; $("dirtyDot").classList.add("hidden"); document.title = "MHGU Collection Tracker";
-  }
+  // ── Persistence (localStorage by default) ──────────────────────────────
+  function markDirty() { scheduleSave(); }
 
-  let autosaveTimer = null;
-  function scheduleAutosave() {
-    clearTimeout(autosaveTimer);
-    autosaveTimer = setTimeout(() => {
-      try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(serializeSave())); } catch (e) {}
-    }, 500);
+  let saveTimer = null;
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(persistCollection, 500);
+  }
+  function persistCollection() {
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(serializeSave())); }
+    catch (e) { toast("Could not save to this browser (storage full or blocked)."); }
   }
 
   // ── Owned toggling ─────────────────────────────────────────────────────
@@ -817,23 +811,18 @@
     renderGrid();
     $("detailPanel").innerHTML = '<div class="detail-empty">Select an item to see its details.</div>';
     selectedId = null;
-    scheduleAutosave();   // keep the crash-recovery mirror in step with the loaded file
+    persistCollection();
   }
 
-  const supportsFsApi = "showSaveFilePicker" in window;
-  const saveOpts = { suggestedName: "mhgu-collection.json", types: [{ description: "JSON", accept: { "application/json": [".json"] } }] };
+  // Backup: Export / Import JSON (optional; localStorage is the primary store).
+  const supportsFsApi = "showOpenFilePicker" in window;
+  const openOpts = { types: [{ description: "JSON", accept: { "application/json": [".json"] } }] };
 
-  async function saveToFile(forceNew) {
-    const data = JSON.stringify(serializeSave(), null, 2);
-    if (supportsFsApi) {
-      try {
-        if (forceNew || !fileHandle) fileHandle = await window.showSaveFilePicker(saveOpts);
-        const w = await fileHandle.createWritable(); await w.write(data); await w.close();
-        clearDirty(); toast("Saved."); return;
-      } catch (e) { if (e && e.name === "AbortError") return; /* else fall through to download */ }
-    }
-    downloadBlob(data, "mhgu-collection.json");
-    clearDirty(); toast("Downloaded save file.");
+  function exportBackup() {
+    clearTimeout(saveTimer);
+    persistCollection();
+    downloadBlob(JSON.stringify(serializeSave(), null, 2), "mhgu-collection.json");
+    toast("Exported JSON backup.");
   }
   function downloadBlob(data, name) {
     const blob = new Blob([data], { type: "application/json" });
@@ -841,11 +830,10 @@
     const a = document.createElement("a"); a.href = url; a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  async function openFile() {
+  async function importBackup() {
     if (supportsFsApi) {
       try {
-        const [h] = await window.showOpenFilePicker({ types: saveOpts.types });
-        fileHandle = h;
+        const [h] = await window.showOpenFilePicker(openOpts);
         const f = await h.getFile();
         loadFromText(await f.text());
         return;
@@ -859,8 +847,7 @@
     const err = validateSave(obj);
     if (err) { toast(err); return; }
     applySave(obj);
-    clearDirty();
-    toast("Collection loaded.");
+    toast("Collection imported.");
   }
 
   $("importFile").addEventListener("change", function () {
@@ -870,14 +857,8 @@
     reader.readAsText(file);
     this.value = "";
   });
-  $("saveBtn").addEventListener("click", () => saveToFile(false));
-  $("saveAsBtn").addEventListener("click", () => saveToFile(true));
-  $("openBtn").addEventListener("click", () => openFile());
-
-  window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
-  document.addEventListener("keydown", e => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveToFile(false); }
-  });
+  $("exportBtn").addEventListener("click", () => exportBackup());
+  $("importBtn").addEventListener("click", () => importBackup());
 
   // ── Search / filter wiring ─────────────────────────────────────────────
   let searchTimer = null;
@@ -970,17 +951,13 @@
   $("themeClose").addEventListener("click", () => $("themeModal").classList.add("hidden"));
   $("themeModal").addEventListener("click", e => { if (e.target.id === "themeModal") $("themeModal").classList.add("hidden"); });
 
-  // ── Restore banner ─────────────────────────────────────────────────────
-  function maybeOfferRestore() {
-    let raw; try { raw = localStorage.getItem(AUTOSAVE_KEY); } catch (e) { return; }
+  // ── Load collection from this browser ──────────────────────────────────
+  function loadFromLocalStorage() {
+    let raw; try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { return; }
     if (!raw) return;
     let obj; try { obj = JSON.parse(raw); } catch (e) { return; }
     if (validateSave(obj)) return;
-    const hasAny = obj.owned && ["w", "a", "p"].some(k => obj.owned[k] && Object.values(obj.owned[k]).some(a => a.length));
-    if (!hasAny) return;
-    $("restoreBanner").classList.remove("hidden");
-    $("restoreYes").addEventListener("click", () => { applySave(obj); clearDirty(); $("restoreBanner").classList.add("hidden"); });
-    $("restoreNo").addEventListener("click", () => $("restoreBanner").classList.add("hidden"));
+    applySave(obj);
   }
 
   // ── Init ───────────────────────────────────────────────────────────────
@@ -992,8 +969,8 @@
   applyTheme(savedTheme);
   $("viewToggle").querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.view === viewMode));
   selectCategory(CATS[0]);
+  loadFromLocalStorage();
   updateProgress();
-  maybeOfferRestore();
 
   // Custom-font repaint fix (selects/text can clip before the font loads)
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => {

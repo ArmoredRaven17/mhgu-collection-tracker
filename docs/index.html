@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MHGU Collection Tracker</title>
 <link rel="icon" type="image/png" href="assets/icons/icon_armor_body_r1.png">
-<link rel="stylesheet" href="styles.css?v=23">
+<link rel="stylesheet" href="styles.css?v=24">
 </head>
 <body>
 <div id="app">
@@ -15,9 +15,8 @@
     <img class="title-icon" src="assets/icons/icon_great_sword.png" alt="">
     <h1>MHGU Collection Tracker</h1>
     <span id="overallProgress" class="progress-pill" title="Overall collection progress">0 / 0</span>
-    <button id="saveBtn"   class="btn tiny">Save <span id="dirtyDot" class="dirty-dot hidden">●</span></button>
-    <button id="saveAsBtn" class="btn tiny">Save As…</button>
-    <button id="openBtn"   class="btn tiny">Open…</button>
+    <button id="exportBtn" class="btn tiny" title="Download a JSON backup of your collection">Export</button>
+    <button id="importBtn" class="btn tiny" title="Restore a collection from a JSON backup">Import…</button>
     <input type="file" id="importFile" accept=".json,application/json" class="hidden">
     <button id="themeBtn" class="icon-btn" title="Theme" aria-label="Theme">&#9881;</button>
     <button id="aboutBtn" class="icon-btn" title="About / Attributions" aria-label="About">&#9432;</button>
@@ -104,6 +103,7 @@
     <p><strong>Monster icons (theme picker):</strong> <a href="https://monsterhunter.fandom.com" target="_blank" rel="noopener">monsterhunter.fandom.com</a> — licensed under <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA 3.0</a>.</p>
     <p><strong>Crafting materials:</strong> <a href="https://github.com/JoeLago/MHGUDB-iOS" target="_blank" rel="noopener">MHGUDB-iOS</a> (MIT) &amp; <a href="https://github.com/gatheringhallstudios/MHGenDatabase" target="_blank" rel="noopener">gatheringhallstudios</a> community database.</p>
     <p><strong>Menu textures:</strong> Edited from the developer's in-game screenshots.</p>
+    <p><strong>Saves:</strong> Your collection is stored automatically in this browser (localStorage). Use Export / Import for JSON backups if you switch devices or clear site data.</p>
     <p class="muted">Monster Hunter content is owned by Capcom. This tool is not affiliated with or endorsed by Capcom.</p>
     <div class="row end gap">
       <button id="aboutClose" class="btn">Close</button>
@@ -122,17 +122,10 @@
   </div>
 </div>
 
-<!-- Restore-session banner -->
-<div id="restoreBanner" class="restore-banner hidden">
-  <span>An unsaved collection from your last session was found.</span>
-  <button id="restoreYes" class="btn tiny">Restore</button>
-  <button id="restoreNo" class="btn tiny">Dismiss</button>
-</div>
-
 <!-- Toast -->
 <div id="toast" class="toast hidden"></div>
 
 <script src="data/catalog.js?v=4"></script>
-<script src="app.js?v=34"></script>
+<script src="app.js?v=35"></script>
 </body>
 </html>
