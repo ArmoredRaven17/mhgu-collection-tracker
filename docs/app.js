@@ -602,10 +602,13 @@
     if ((ev.ctrlKey || ev.metaKey) && settings.ctrlRemove) { toggleOwned(c, id); return; }
     const alreadyOpen = selectedId === id && current === c;
     if (alreadyOpen) {
-      // repeat click on the open piece: anything with upgrade levels (weapons, and
-      // now armor) levels up; the rest just get marked owned
-      if ((c.kind === "w" || (c.kind === "a" && maxLevelOf(c, id) > 1)) && settings.clickLevel) advanceWeapon(c, id);
-      else if (!isOwned(c, id)) toggleOwned(c, id);   // (already-owned = no-op; ctrl+click un-owns)
+      // Repeat click on the open piece. The whole behaviour is behind clickLevel, so
+      // turning it off leaves ownership and levels entirely to the detail panel.
+      // Pieces with upgrade levels advance through them; the rest just get owned.
+      if (settings.clickLevel) {
+        if (c.kind === "w" || (c.kind === "a" && maxLevelOf(c, id) > 1)) advanceWeapon(c, id);
+        else if (!isOwned(c, id)) toggleOwned(c, id);   // already-owned = no-op; ctrl+click un-owns
+      }
     } else {
       document.querySelectorAll(".box-cell.selected, .list-row.selected").forEach(x => x.classList.remove("selected"));
       cell.classList.add("selected");
