@@ -5,6 +5,10 @@
   const C = window.CATALOG;
   if (!C) { document.body.innerHTML = "<p style='padding:20px'>Failed to load catalog data.</p>"; return; }
 
+  // Bump whenever docs/data/ is regenerated. The JSON files are fetched at runtime,
+  // so without this a browser holding a cached copy runs new code against old data —
+  // which fails silently, as wrong numbers rather than an error.
+  const DATA_VERSION = "2";
   const SAVE_APP = "mhgu-collection-tracker";
   const SAVE_VERSION = 2;   // v2 adds per-item upgrade levels
   const AUTOSAVE_KEY = "mhgu-tracker-autosave";
@@ -124,13 +128,13 @@
 
   async function loadStats(file) {
     if (statsCache.has(file)) return statsCache.get(file);
-    const p = fetch(`data/stats/${file}`).then(r => r.ok ? r.json() : Promise.reject(r.status));
+    const p = fetch(`data/stats/${file}?v=${DATA_VERSION}`).then(r => r.ok ? r.json() : Promise.reject(r.status));
     statsCache.set(file, p);
     try { return await p; } catch (e) { statsCache.delete(file); throw e; }
   }
   async function loadMaterials(file) {
     if (materialsCache.has(file)) return materialsCache.get(file);
-    const p = fetch(`data/materials/${file}`).then(r => r.ok ? r.json() : Promise.reject(r.status));
+    const p = fetch(`data/materials/${file}?v=${DATA_VERSION}`).then(r => r.ok ? r.json() : Promise.reject(r.status));
     materialsCache.set(file, p);
     try { return await p; } catch (e) { materialsCache.delete(file); return null; }
   }
@@ -399,7 +403,9 @@
   function renderGrid() {
     const grid = $("grid");
     grid.classList.toggle("view-list", viewMode === "list");
-    grid.classList.toggle("view-materials", viewMode === "materials");
+    grid.classList.toggle("view-materials", viewMode === "materials" || viewMode === "totals");
+    // Totals spans every category, so it does not go through currentItems().
+    if (viewMode === "totals") { $("gridEmpty").classList.add("hidden"); renderTotalsView(); return; }
     let items = currentItems().filter(passesFilters);
     sortItems(items);
     if (!items.length) { grid.innerHTML = ""; $("gridEmpty").classList.remove("hidden"); return; }
@@ -424,6 +430,104 @@
       : "";
     grid.innerHTML = note + items.map(it => materialsRowHtml(it.cat, it.id, it, dataByFile[it.cat.statsFile])).join("");
   }
+  // ── Totals View — every category at once, merged outstanding cost ──
+  // The only view that spans categories. It counts what you still owe: anything you
+  // already own is treated as already paid for, so owning a piece drops its creation
+  // cost and owning it at LV n drops levels up to n.
+  //
+  // What "cost" means differs by kind, because the data differs by kind:
+  //   Weapons — upgrades only. Creation is excluded: a weapon is created by consuming
+  //             its parent, so summing every tree's create recipe across a category
+  //             produces a number you cannot act on.
+  //   Armor   — creation plus upgrades. Each piece is crafted independently from raw
+  //             materials, so both are real, additive costs.
+  //   Palico  — creation only; Palico gear has no upgrade levels.
+  const totalsPieceCost = (c, it, data) => {
+    const sum = new Map();
+    if (!data) return sum;
+    const add = pairs => { for (const [mi, q] of pairs || []) {
+      const n = data.mats[mi]; if (n) sum.set(n, (sum.get(n) || 0) + q); } };
+    const addMap = m => { for (const [n, q] of m) sum.set(n, (sum.get(n) || 0) + q); };
+    const has = isOwned(c, it.id), max = maxLevelOf(c, it.id);
+    const from = has ? Math.max(1, ownedLevel(c, it.id)) : 1;
+
+    if (c.kind === "p") {                       // creation only, and only if unbuilt
+      if (!has) add((c.key === "head" || c.key === "body")
+        ? (data[c.key] || {})[String(it.id)] : (data.byId || {})[String(it.id)]);
+      return sum;
+    }
+    if (c.kind === "a" && !has) add((data.create || {})[String(it.id)]);
+    if (max > 1 && from < max)
+      addMap(c.kind === "w" ? sumTreeMats(data, it.id, max, from + 1)
+                            : sumArmorMats(data, it.id, max, from + 1));
+    return sum;
+  };
+  let totalsViewToken = 0;
+  async function renderTotalsView() {
+    const token = ++totalsViewToken;
+    const grid = $("grid");
+    grid.innerHTML = '<div class="detail-note" style="padding:20px">Loading materials…</div>';
+    const files = [...new Set(CATS.map(c => c.statsFile))];
+    const dataByFile = {};
+    await Promise.all(files.map(f =>
+      loadMaterials(f).then(d => { dataByFile[f] = d; }).catch(() => { dataByFile[f] = null; })));
+    if (token !== totalsViewToken) return;   // a newer render superseded this one
+
+    const blocks = [];
+    const pending = new Map();   // "kind:key" -> Map(name->qty), or a note string
+    let grand = 0;
+    const GROUPS = [
+      { t: "Weapons", k: "w", note: "Create cost excluded due to multiple paths to create weapons, upgrade materials listed." },
+      { t: "Armor",   k: "a", note: "Create costs included since armors have one creation path, upgrade materials listed." },
+      { t: "Palico",  k: "p", note: "Create costs included, upgrade materials excluded due to having no upgrades." },
+    ];
+    for (const group of GROUPS) {
+      const rows = [];
+      for (const c of CATS.filter(x => x.kind === group.k)) {
+        const data = dataByFile[c.statsFile];
+        const merge = new Map();
+        let pieces = 0;
+        for (const e of c.entries) {
+          const it = normalize(c, e);
+          if (!passesFilters(it)) continue;
+          const sum = totalsPieceCost(c, it, data);
+          if (!sum.size) continue;                          // nothing left to pay
+          pieces++;
+          for (const [n, q] of sum) merge.set(n, (merge.get(n) || 0) + q);
+        }
+        const units = [...merge.values()].reduce((a, b) => a + b, 0);
+        grand += units;
+        // Expanded, every category together is ~20k rows. Render headers now and
+        // fill each body the first time it's opened.
+        const cid = catId(c);
+        pending.set(cid, merge.size ? merge
+          : "Nothing outstanding — everything shown is already built and fully upgraded.");
+        rows.push(`<div class="mat-view-row totals-row${merge.size ? "" : " complete"}" data-cat="${cid}">
+          <div class="mat-view-head"><img class="list-icon" src="${iconPath(c.iconSlug, 1)}" alt="">
+            <span class="list-name">${escapeHtml(c.label)}</span>
+            <span class="list-rar">${pieces} ${pieces === 1 ? "piece" : "pieces"} · ${fmtNum(units)} items</span>
+            <span class="totals-chev">▾</span></div>
+          <div class="mat-view-body"></div></div>`);
+      }
+      if (rows.length) blocks.push(
+        `<div class="mat-view-note"><b>${group.t}</b> — ${group.note}</div>${rows.join("")}`);
+    }
+    const note = `<div class="mat-view-note">This is a sum of materials you will need to fully upgrade/create everything
+      for each category in case you were curious. Equipment you have is subtracted from the running totals.
+      <br>You will need <b>${fmtNum(grand)}</b> items in total.</div>`;
+    grid.innerHTML = note + blocks.join("");
+    grid.querySelectorAll(".totals-row").forEach(rowEl => {
+      rowEl.querySelector(".mat-view-head").addEventListener("click", () => {
+        const body = rowEl.querySelector(".mat-view-body");
+        if (!body.innerHTML) {
+          const v = pending.get(rowEl.dataset.cat);
+          body.innerHTML = typeof v === "string" ? `<div class="detail-note">${v}</div>` : matNameListHtml(v);
+        }
+        rowEl.classList.toggle("open");
+      });
+    });
+  }
+
   function materialsRowHtml(c, id, it, data) {
     let bodyHtml = "", complete = false;
     const max = maxLevelOf(c, id), owned = isOwned(c, id);
@@ -791,9 +895,9 @@
   }
   // ── Armor materials ────────────────────────────────────────────────────
   // Armor data comes straight from the game's tables: `create` is the level-1
-  // recipe (a trailing 1 on a pair marks the Key material), `byId[id][level]` the
-  // per-level upgrade cost, and `points[id][level]` a material-point cost paid
-  // from a category of materials rather than specific items.
+  // recipe (a trailing 1 on a pair marks the Key material) and `byId[id][level]`
+  // the per-level upgrade cost. Material-point costs appear as ordinary entries
+  // named after their category, e.g. "LR Maccao Materials".
   function sumArmorMats(data, id, hi, lo) {
     const rec = (data.byId || {})[String(id)] || {};
     const merge = new Map();
@@ -803,18 +907,6 @@
         merge.set(n, (merge.get(n) || 0) + q);
       }
     return merge;
-  }
-  // A material-point cost is paid with any materials from a category, so the
-  // category can be long — show a few and keep the rest in the tooltip.
-  function armorPointsHtml(data, id, level) {
-    const p = ((data.points || {})[String(id)] || {})[level];
-    if (!p) return "";
-    const members = (data.cats || [])[p[0]] || [];
-    const shown = members.slice(0, 3).join(", ");
-    const extra = members.length > 3 ? ` +${members.length - 3} more` : "";
-    const from = members.length ? ` from ${escapeHtml(shown)}${extra}` : "";
-    return `<ul class="mat-list"><li title="${escapeHtml(members.join(", "))}">`
-      + `<span class="mat-q">${p[1]}×</span> material points${from}</li></ul>`;
   }
   function armorMaterialsHtml(c, id, data) {
     const create = (data.create || {})[String(id)];
@@ -833,9 +925,7 @@
       else if (start >= max) body = '<div class="detail-note">Fully upgraded — no upgrades left.</div>';
       else {
         const label = isOwned(c, id) && ownedLevel(c, id) > 0 ? `From LV ${start} → ${max}` : `All upgrades · LV 1 → ${max}`;
-        let pts = "";
-        for (let L = start + 1; L <= max; L++) pts += armorPointsHtml(data, id, L);
-        body = `<div class="mat-step">${label}</div>${matNameListHtml(sumArmorMats(data, id, max, start + 1))}${pts}`;
+        body = `<div class="mat-step">${label}</div>${matNameListHtml(sumArmorMats(data, id, max, start + 1))}`;
       }
     } else {
       const ref = refLevelOf(c, id);
@@ -844,10 +934,8 @@
         const zenny = (data.zenny || {})[String(id)];
         body = `<div class="mat-step">Create (LV 1)${zenny ? ` · ${zenny}z` : ""}</div>${matPairsHtml(create, data.mats)}`;
       } else {
-        // Some levels cost only material points — don't print "None listed." above them.
-        const nl = ref + 1, pairs = rec && rec[nl], pts = armorPointsHtml(data, id, nl);
-        const items = (pairs && pairs.length) || !pts ? matPairsHtml(pairs, data.mats) : "";
-        body = `<div class="mat-step">Upgrade to LV ${nl}</div>${items}${pts}`;
+        const nl = ref + 1;
+        body = `<div class="mat-step">Upgrade to LV ${nl}</div>${matPairsHtml(rec && rec[nl], data.mats)}`;
       }
     }
     return `<div class="detail-section-title">Crafting materials</div>
@@ -1046,9 +1134,12 @@
   document.querySelectorAll('input[name="armorClassFilter"]').forEach(r =>
     r.addEventListener("change", function () { if (this.checked) { filters.armorClass = this.value; renderGrid(); } }));
   function setView(v) {
-    viewMode = (v === "list" || v === "materials") ? v : "grid";
+    viewMode = (v === "list" || v === "materials" || v === "totals") ? v : "grid";
     try { localStorage.setItem("mhgu-tracker-view", viewMode); } catch (e) {}
     $("viewToggle").querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.view === viewMode));
+    // Totals isn't scoped to a category, so the header shouldn't claim one.
+    if (viewMode === "totals") { $("catTitle").textContent = "All categories"; $("catCount").textContent = ""; }
+    else updateSearchTitle();
     renderGrid();
   }
   $("viewToggle").querySelectorAll("button").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
