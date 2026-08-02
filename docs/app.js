@@ -93,6 +93,7 @@
   try { viewMode = localStorage.getItem("mhgu-tracker-view") || "grid"; } catch (e) {}
 
   const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", dummy: false, armorClass: "all", rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
+  let syncDummyToggle = null;   // set once the Settings switch is bound, below
   const armorClassName = { B: "Blademaster", G: "Gunner", A: "Both" };
   const isDummy = name => /\(DUMMY\)/i.test(name);
   const dummyIds = new Map();   // "kind:key" -> Set(ids whose name is DUMMY)
@@ -943,7 +944,7 @@
       }
     }
     if (unknownCount) toast(`${unknownCount} unrecognized id(s) preserved for re-export.`);
-    if (typeof obj.showDummy === "boolean") { filters.dummy = obj.showDummy; $("dummyFilter").checked = obj.showDummy; }
+    if (typeof obj.showDummy === "boolean") { filters.dummy = obj.showDummy; if (syncDummyToggle) syncDummyToggle(); }
     updateProgress();
     renderGrid();
     $("detailPanel").innerHTML = '<div class="detail-empty">Select an item to see its details.</div>';
@@ -1029,7 +1030,6 @@
   document.querySelectorAll('input[name="ownedFilter"]').forEach(r =>
     r.addEventListener("change", function () { if (this.checked) { filters.owned = this.value; renderGrid(); } }));
   $("sortSelect").addEventListener("change", function () { filters.sort = this.value; renderGrid(); });
-  $("dummyFilter").addEventListener("change", function () { filters.dummy = this.checked; renderGrid(); updateProgress(); });
   document.querySelectorAll('input[name="armorClassFilter"]').forEach(r =>
     r.addEventListener("change", function () { if (this.checked) { filters.armorClass = this.value; renderGrid(); } }));
   function setView(v) {
@@ -1135,12 +1135,20 @@
     $("restoreNo").addEventListener("click", () => $("restoreBanner").classList.add("hidden"));
   }
   // Toggle switches (role="switch" buttons rather than checkboxes)
+  // Returns its sync fn so callers that change the underlying state elsewhere
+  // (e.g. loading a save) can bring the switch back in step.
   function bindToggle(id, get, set) {
     const el = $(id);
     const sync = () => el.setAttribute("aria-checked", get() ? "true" : "false");
     sync();
     el.addEventListener("click", () => { set(!get()); sync(); });
+    return sync;
   }
+  // DUMMY gear is MHXX-only content left in MHGU's data; every entry is a weapon.
+  // Unlike the other switches this one lives in the save file (showDummy), not in
+  // settings, so loading a save has to re-sync it — see applySave.
+  syncDummyToggle = bindToggle("dummyToggle", () => filters.dummy,
+    v => { filters.dummy = v; renderGrid(); updateProgress(); });
   bindToggle("clickLevelToggle", () => settings.clickLevel, v => { settings.clickLevel = v; saveSettings(); });
   bindToggle("ctrlRemoveToggle", () => settings.ctrlRemove, v => { settings.ctrlRemove = v; saveSettings(); });
   bindToggle("altMaxToggle", () => settings.altMax, v => { settings.altMax = v; saveSettings(); });
