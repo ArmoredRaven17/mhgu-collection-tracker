@@ -19,10 +19,30 @@ by Capcom.
 
 ## Game Data
 
+### Armor — extracted from the game's own data files
+
+Armor stats, resistances, decoration slots, skills, upgrade levels,
+per-level upgrade costs, crafting recipes, and forge prices are extracted
+directly from **Monster Hunter Generations Ultimate's own data tables**
+(`nativeNX/table`), read from a copy of the game dumped by the author from a
+personally-owned cartridge. The extraction is performed by
+[scripts/build-armor-data.mjs](scripts/build-armor-data.mjs), which emits
+this project's own JSON schema into [docs/data/stats/](docs/data/stats/) and
+[docs/data/materials/](docs/data/materials/).
+
+**No game files, extracted archives, or decryption keys are redistributed by
+this project.** The dump is a local, gitignored input; only the generated
+data tables are committed. The underlying facts and all in-game names remain
+Capcom's property (see *Game IP* above).
+
+Armor data was previously sourced from Kiranico and the community database
+described below; it no longer is, and those sources are credited here for
+the remaining categories and for naming.
+
 ### Kiranico (https://mhgu.kiranico.com/)
 
-Weapon, armor, skill, and Palico-equipment names and stat tables originate
-from Kiranico's MHGU database, by way of the
+Weapon and Palico-equipment names and stat tables originate from Kiranico's
+MHGU database, by way of the
 [mhgu-editor](https://github.com/redacted/mhgu-editor) project's data
 files. They are compiled into [docs/data/catalog.js](docs/data/catalog.js)
 and [docs/data/stats/](docs/data/stats/) by
@@ -32,19 +52,26 @@ acknowledgment of their fan-database work. If the maintainers of Kiranico
 object to this use, please open an issue and the affected data will be
 reviewed or removed.
 
-### Crafting materials — gatheringhallstudios / JoeLago
+### Crafting materials and English naming — gatheringhallstudios / JoeLago
 
-The weapon and armor crafting-material lists in
+The weapon and Palico crafting-material lists in
 [docs/data/materials/](docs/data/materials/) are derived from the MHGU
 database (`mhgu.db`) bundled in
 [JoeLago/MHGUDB-iOS](https://github.com/JoeLago/MHGUDB-iOS) (MIT-licensed),
 which in turn is built on the community database from
 [gatheringhallstudios/MHGenDatabase](https://github.com/gatheringhallstudios/MHGenDatabase).
-Only the factual recipe data (which materials and quantities craft or
-upgrade each item) is extracted and re-emitted in this project's own JSON
-schema by [scripts/build-data.mjs](scripts/build-data.mjs); no source code,
-schema, or image assets from those projects are redistributed. Attribution
-is offered as courtesy acknowledgment of that community data work.
+
+That database also supplies the **English item, skill, and equipment names
+used throughout this project, including for armor.** The game's own data
+tables store names in Japanese only, so while the armor *numbers* now come
+from the game, the English *naming* still rests on this community work.
+`mhgu.db` is additionally used to verify the armor extraction: every decoded
+field is cross-checked against it by `build-armor-data.mjs --check`.
+
+Only the factual recipe and naming data is extracted and re-emitted in this
+project's own JSON schema; no source code, schema, or image assets from
+those projects are redistributed. Attribution is offered as courtesy
+acknowledgment of that community data work.
 
 ---
 
