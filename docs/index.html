@@ -57,9 +57,6 @@
             <label class="chk"><input type="radio" name="armorClassFilter" value="B"><span>Blademaster</span></label>
             <label class="chk"><input type="radio" name="armorClassFilter" value="G"><span>Gunner</span></label>
           </div>
-          <div class="filter-group">
-            <label class="chk"><input type="checkbox" id="dummyFilter"><span>Include DUMMY (MHXX) equipment</span></label>
-          </div>
         </div>
       </div>
 
@@ -147,6 +144,15 @@
     </div>
 
     <div class="set-section">
+      <div class="set-title">Display</div>
+      <div class="set-row">
+        <div class="set-label">Include DUMMY (MHXX) Weapons
+          <span class="set-hint">Shows the seven MHXX-only weapons left behind in MHGU's data. They can't be obtained in-game.</span></div>
+        <button type="button" class="toggle" id="dummyToggle" role="switch" aria-checked="false" aria-label="Include DUMMY MHXX weapons"></button>
+      </div>
+    </div>
+
+    <div class="set-section">
       <div class="set-title">Theme</div>
       <div id="swatches" class="swatches"></div>
     </div>
@@ -169,6 +175,6 @@
 
 <script src="data/catalog.js?v=5"></script>
 <script src="data/armor_levels.js?v=1"></script>
-<script src="app.js?v=43"></script>
+<script src="app.js?v=44"></script>
 </body>
 </html>
