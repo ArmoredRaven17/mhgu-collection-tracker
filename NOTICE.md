@@ -39,6 +39,34 @@ Armor data was previously sourced from Kiranico and the community database
 described below; it no longer is, and those sources are credited here for
 the remaining categories and for naming.
 
+#### Extraction toolchain
+
+None of the armor data would exist in this project without a long chain of
+other people's work. None of these tools are bundled or redistributed here,
+and none of them impose terms on this project — they are credited because
+the data could not have been obtained without them:
+
+- **[Ryujinx](https://github.com/Ryujinx/Ryujinx)** — the Nintendo Switch
+  emulator, whose *Extract Data → RomFS* feature produced the decrypted
+  `nativeNX` filesystem this project reads. Ryujinx's original development
+  ended in 2024; community forks continue the work.
+- **[Atmosphère](https://github.com/Atmosphere-NX/Atmosphere)** and
+  **[hekate](https://github.com/CTCaer/hekate)** — the custom firmware and
+  bootloader that make the console able to run the tools below.
+- **Lockpick_RCM** — console key derivation, without which the cartridge
+  dump cannot be decrypted. (Deliberately unlinked; the project's original
+  repository is no longer hosted.)
+- **[nxdumptool](https://github.com/DarkMatterCore/nxdumptool)** — produced
+  the cartridge dump of the author's own copy of the game.
+- **[LibHac](https://github.com/Thealexbarney/LibHac)** and the wider
+  format-reversing effort behind it, which underpins the Switch filesystem
+  handling that emulators and dumping tools rely on.
+- Everyone who reverse-engineered Capcom's **MT Framework** container and
+  GMD text formats. The specific record layouts in
+  [scripts/build-armor-data.mjs](scripts/build-armor-data.mjs) were derived
+  independently for this project, but the general shape of these formats is
+  community knowledge built up over many years and many games.
+
 ### Kiranico (https://mhgu.kiranico.com/)
 
 Weapon and Palico-equipment names and stat tables originate from Kiranico's
