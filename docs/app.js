@@ -1154,9 +1154,17 @@
     toast(localSaveEnabled ? "Saving your collection in this browser." : "Browser save turned off and cleared.");
   });
   $("clearLocalBtn").addEventListener("click", () => {
+    // Clearing storage alone does nothing: the in-memory collection is still loaded,
+    // so the next autosave (or the beforeunload flush) writes it straight back. Reset
+    // the collection too, which is what "clear" is asked for in the first place.
+    if (!confirm("Clear your collection from this browser?\n\n"
+      + "This erases the saved copy and resets what's currently tracked. "
+      + "Collections you've saved to a file are not affected.")) return;
+    clearTimeout(autosaveTimer);
     try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) {}
+    applySave({ owned: {}, levels: {} });               // resets state, re-renders, re-mirrors
+    clearDirty();
     toast("Browser save cleared.");
-    if (localSaveEnabled) scheduleAutosave();            // still on → immediately re-store current state
   });
   // Collapsible sidebar panels
   document.querySelectorAll(".panel > .panel-head").forEach(h => h.addEventListener("click", () => {
