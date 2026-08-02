@@ -22,12 +22,14 @@
 //     @0/@2/@4/@6 u16 series ids sharing it; @10..37 7 x [u16 item, u8 qty, u8 key]
 //   armorProcessA00.apd  5162 x 38  one record per upgrade level
 //     @0/@2 u16 series ids; @8 u16 level; @10..21 + @26..37 4 x [u16 item, u8 qty]
-//     @22 u16 material-point category, @24 u16 points
+//     @22 u16 material-point category, @24 u16 points. A category is itself an item
+//     in mhgu.db at (30<<16)|id — e.g. category 32 is "LR Maccao Materials" — so a
+//     point cost is emitted as an ordinary material, exactly as the weapon data does.
 //   itemData.itm         2991 x 44  @28 u16 material-point category
 //
 // Outputs (compact, same conventions as build-data.mjs):
 //   docs/data/stats/armor_<slot>.json      { slot, byId: { id: {def,res,slots,sk} } }
-//   docs/data/materials/armor_<slot>.json  { slot, mats, cats, byId, create, points, maxLevel, zenny }
+//   docs/data/materials/armor_<slot>.json  { slot, mats, byId, create, maxLevel, zenny }
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -50,6 +52,7 @@ if (!TABLE) { console.error('usage: node scripts/build-armor-data.mjs "<nativeNX
 const SLOTS = ['head', 'chest', 'arms', 'waist', 'legs'];
 const DB_SLOT = { head: 'Head', chest: 'Body', arms: 'Arms', waist: 'Waist', legs: 'Legs' };
 const SLOT_HI = { head: 20, chest: 21, arms: 22, waist: 23, legs: 24 };
+const CATEGORY_BASE = 30 << 16;   // material-point category N is item (30<<16)|N
 
 // ── table reader ───────────────────────────────────────────────────────────
 function table(name, recSize) {
@@ -181,10 +184,9 @@ const allMaxLevels = {};
 const curveMismatch = [];
 
 for (const [si, slot] of SLOTS.entries()) {
-  const statById = {}, matsIdx = new Map(), catIdx = new Map();
-  const byId = {}, createOut = {}, pointsOut = {}, maxLevel = {}, zennyOut = {};
+  const statById = {}, matsIdx = new Map();
+  const byId = {}, createOut = {}, maxLevel = {}, zennyOut = {};
   const mi = n => { if (!matsIdx.has(n)) matsIdx.set(n, matsIdx.size); return matsIdx.get(n); };
-  const ci = c => { if (!catIdx.has(c)) catIdx.set(c, catIdx.size); return catIdx.get(c); };
 
   for (const [sid, s] of S) {
     // The game itself says whether a slot is populated: an absent piece is 装備なし.
@@ -213,14 +215,15 @@ for (const [si, slot] of SLOTS.entries()) {
     }
     const up = upgrades.get(sid);
     if (up) {
-      const lv = {}, pt = {};
+      const lv = {};
       for (const [level, u] of Object.entries(up)) {
-        if (u.mats.length) lv[level] = u.mats.map(([iid, q]) => [mi(itemName.get(iid) || `item#${iid}`), q]);
-        if (u.cat || u.pts) pt[level] = [ci(u.cat), u.pts];
+        const pairs = u.mats.map(([iid, q]) => [mi(itemName.get(iid) || `item#${iid}`), q]);
+        // A material-point cost is the category item itself, quantity = points.
+        if (u.cat) pairs.push([mi(itemName.get(CATEGORY_BASE | u.cat) || `category#${u.cat}`), u.pts]);
+        if (pairs.length) lv[level] = pairs;
         report.levels++;
       }
       if (Object.keys(lv).length) byId[sid] = lv;
-      if (Object.keys(pt).length) pointsOut[sid] = pt;
       maxLevel[sid] = Math.max(...Object.keys(up).map(Number));
       // The defense curve and the upgrade path must agree on how many levels exist.
       if (s.curve.length + 1 !== maxLevel[sid]) curveMismatch.push({ slot, sid, curve: s.curve.length + 1, path: maxLevel[sid] });
@@ -242,11 +245,10 @@ for (const [si, slot] of SLOTS.entries()) {
   }
 
   allMaxLevels[slot] = maxLevel;
-  const cats = [...catIdx.keys()].map(c => catMembers.get(c) || []);
   writeFileSync(statsFile(slot),
     JSON.stringify({ slot, byId: statById }));
   writeFileSync(matsFile(slot),
-    JSON.stringify({ slot, mats: [...matsIdx.keys()], cats, byId, create: createOut, points: pointsOut, maxLevel, zenny: zennyOut }));
+    JSON.stringify({ slot, mats: [...matsIdx.keys()], byId, create: createOut, maxLevel, zenny: zennyOut }));
   console.log(`  armor_${slot}: ${Object.keys(statById).length} pieces, `
     + `${Object.keys(createOut).length} recipes, ${Object.keys(byId).length} upgrade paths, ${matsIdx.size} materials`);
 }

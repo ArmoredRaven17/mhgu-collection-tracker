@@ -349,3 +349,10 @@ body{
   .titlebar{flex-wrap:wrap}
   .progress-pill{margin-left:0}
 }
+
+/* Totals view — one collapsible block per category (see renderTotalsView) */
+.totals-row .mat-view-head{margin-bottom:0}
+.totals-row.open .mat-view-head{margin-bottom:6px}
+.totals-row:not(.open) .mat-view-body{display:none}
+.totals-chev{margin-left:6px;opacity:.55;font-size:11px;transition:transform .12s}
+.totals-row.open .totals-chev{transform:rotate(180deg);display:inline-block}
