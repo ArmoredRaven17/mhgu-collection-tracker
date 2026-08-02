@@ -35,17 +35,35 @@ Then open http://localhost:8000/.
 
 ## Regenerating data
 
-Game data and icons are generated from the [mhgu-editor](https://github.com/AHumphrey17/mhgu-editor)
-repo's data files (which in turn derive from Kiranico), plus crafting-material
-recipes from the MHGU database (`mhgu.db`):
+Two generators, with separate ownership of the output files — they do not
+overlap, so the order does not matter.
+
+**1. Weapons, Palico gear, the catalog and icons** come from the
+[mhgu-editor](https://github.com/AHumphrey17/mhgu-editor) repo's data files
+(which in turn derive from Kiranico), plus crafting-material recipes from the MHGU
+database (`mhgu.db`):
 
 ```
 node scripts/build-data.mjs "C:/Coding Repos/mhgu-editor" --icons
 ```
 
-This rewrites `docs/data/catalog.js`, `docs/data/stats/*.json`,
-`docs/data/materials/*.json`, and (with `--icons`) copies the equipment icons
-into `docs/assets/icons/`.
+This rewrites `docs/data/catalog.js`, the weapon and Palico files under
+`docs/data/stats/` and `docs/data/materials/`, and (with `--icons`) copies the
+equipment icons into `docs/assets/icons/`.
+
+**2. Armor** comes from the game's own data tables, read from a local dump of
+MHGU (`nativeNX/table`). Nothing from the dump is committed — only the generated
+JSON:
+
+```
+node scripts/build-armor-data.mjs "<path to nativeNX/table>" --check
+```
+
+This rewrites `docs/data/stats/armor_*.json`, `docs/data/materials/armor_*.json`
+and `docs/data/armor_levels.js`. `--check` cross-validates every decoded field
+against `mhgu.db` and reports any mismatch. Armor stats and materials are
+deliberately *not* written by `build-data.mjs`, so re-running it will not clobber
+them.
 
 **Materials input:** the generator reads `data-src/mhgu.db` (gitignored — not
 redistributed). Download it from

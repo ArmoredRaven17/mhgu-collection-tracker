@@ -54,10 +54,18 @@
   const catByIdMap = new Map(CATS.map(c => [catId(c), c]));
   const validIds = new Map();   // "kind:key" -> Set(ids)
   for (const c of CATS) validIds.set(catId(c), new Set(c.entries.map(e => e[0])));
-  const maxLevels = new Map();  // "kind:key" -> Map(id -> maxLevel); weapons only (entry[4])
+  // "kind:key" -> Map(id -> maxLevel). Weapons carry it in entry[4]; armor upgrade
+  // levels come from the game's own tables via data/armor_levels.js (see
+  // scripts/build-armor-data.mjs). Palico gear has no levels.
+  const maxLevels = new Map();
+  const ARMOR_LEVELS = (typeof window !== "undefined" && window.ARMOR_LEVELS) || {};
   for (const c of CATS) {
     const m = new Map();
     if (c.kind === "w") for (const e of c.entries) m.set(e[0], e[4] || 0);
+    else if (c.kind === "a") {
+      const lv = ARMOR_LEVELS[c.key] || {};
+      for (const e of c.entries) { const n = lv[e[0]] || 0; if (n > 1) m.set(e[0], n); }
+    }
     maxLevels.set(catId(c), m);
   }
   const maxLevelOf = (c, id) => maxLevels.get(catId(c)).get(id) || 0;
@@ -420,11 +428,17 @@
       else if (!data || !data.byId[String(id)]) bodyHtml = '<div class="detail-note">No material data.</div>';
       else if (max <= 1) bodyHtml = '<div class="detail-note">No upgrades (create only).</div>';
       else bodyHtml = `<div class="mat-step">Upgrades · LV ${start} → ${max}</div>${matNameListHtml(sumTreeMats(data, id, max, start + 1))}`;
+    } else if (c.kind === "a" && max > 1) {
+      // Armor upgrades work like weapons: remaining materials from current level → max.
+      const start = owned && ownedLevel(c, id) > 0 ? ownedLevel(c, id) : 1;
+      if (owned && ownedLevel(c, id) >= max) complete = true;
+      else if (!data || !(data.byId || {})[String(id)]) bodyHtml = '<div class="detail-note">No material data.</div>';
+      else bodyHtml = `<div class="mat-step">Upgrades · LV ${start} → ${max}</div>${matNameListHtml(sumArmorMats(data, id, max, start + 1))}`;
     } else {
-      if (owned) complete = true;                 // armor/palico have no levels → owned == done
+      if (owned) complete = true;                 // no upgrade levels → owned == done
       else {
         const rec = data ? (c.kind === "p" && (c.key === "head" || c.key === "body")
-          ? (data[c.key] || {})[String(id)] : (data.byId || {})[String(id)]) : null;
+          ? (data[c.key] || {})[String(id)] : (data.create || data.byId || {})[String(id)]) : null;
         bodyHtml = rec ? matPairsHtml(rec, data.mats) : '<div class="detail-note">No material data.</div>';
       }
     }
@@ -439,7 +453,7 @@
   // The level-based Show filters only mean something for weapons (armor/palico have no
   // levels, so owned == maxed). Disable them elsewhere, falling back to "All" if active.
   function updateLevelFilterAvailability() {
-    const enabled = current.kind === "w" || (filters.searchAll && !!filters.text);
+    const enabled = current.kind === "w" || current.kind === "a" || (filters.searchAll && !!filters.text);
     let reset = false;
     for (const v of ["maxed", "partial"]) {
       const r = document.querySelector(`input[name="ownedFilter"][value="${v}"]`);
@@ -478,8 +492,9 @@
     if ((ev.ctrlKey || ev.metaKey) && settings.ctrlRemove) { toggleOwned(c, id); return; }
     const alreadyOpen = selectedId === id && current === c;
     if (alreadyOpen) {
-      // repeat click on the open piece: weapons level up; armor/palico mark owned
-      if (c.kind === "w" && settings.clickLevel) advanceWeapon(c, id);
+      // repeat click on the open piece: anything with upgrade levels (weapons, and
+      // now armor) levels up; the rest just get marked owned
+      if ((c.kind === "w" || (c.kind === "a" && maxLevelOf(c, id) > 1)) && settings.clickLevel) advanceWeapon(c, id);
       else if (!isOwned(c, id)) toggleOwned(c, id);   // (already-owned = no-op; ctrl+click un-owns)
     } else {
       document.querySelectorAll(".box-cell.selected, .list-row.selected").forEach(x => x.classList.remove("selected"));
@@ -501,8 +516,8 @@
     const lv = ownedLevel(c, id), on = isOwned(c, id);
     document.querySelectorAll("#detailStats .lvl-row").forEach(tr =>
       tr.classList.toggle("selected", on && Number(tr.dataset.lv) === lv));
-    // Materials are relative to the owned level → refresh them for weapons.
-    if (c.kind === "w" && openMaterials) renderMaterials(c, id, openMaterials);
+    // Materials are relative to the owned level → refresh anything that has levels.
+    if ((c.kind === "w" || c.kind === "a") && openMaterials) renderMaterials(c, id, openMaterials);
   }
   function wireLevelRows(c, id) {
     document.querySelectorAll("#detailStats .lvl-row").forEach(tr =>
@@ -552,7 +567,7 @@
       if (selectedId !== id) return;   // selection changed while loading
       const body = $("detailStats");
       if (c.kind === "w") { body.innerHTML = renderWeaponDetail(data, id); wireLevelRows(c, id); }
-      else if (c.kind === "a") body.innerHTML = renderArmorDetail(data, id);
+      else if (c.kind === "a") { body.innerHTML = renderArmorDetail(data, id); wireLevelRows(c, id); }
       else body.innerHTML = renderPalicoDetail(c.key, data, id);
       wireSharpToggle();
       refreshDetailOwned(c, id);   // highlight the owned level row, if any
@@ -645,6 +660,20 @@
     h += resGridHtml(s.res);
     if (s.sk && s.sk.length)
       h += `<div class="detail-section-title">Skills</div><div class="chip-list">${s.sk.map(k => `<span class="chip">${escapeHtml(k[0])} ${k[1] > 0 ? "+" + k[1] : k[1]}</span>`).join("")}</div>`;
+    // Per-level defense, presented like a weapon's upgrade table. Only skills and
+    // resistances stay flat — armor upgrades raise defense and nothing else.
+    if (s.lv && s.lv.length > 1) {
+      const rows = s.lv.map((def, i) => {
+        const gain = i ? def - s.lv[i - 1] : 0;
+        return `<tr class="lvl-row" data-lv="${i + 1}">
+          <td class="lvl-own"></td><td>${i + 1}</td><td>${def}</td>
+          <td>${gain ? "+" + gain : "—"}</td></tr>`;
+      }).join("");
+      h += `<div class="detail-section-title">Upgrade levels</div>
+        <div class="lvl-hint">Click the level you currently have.</div>
+        <table class="lvl-table"><thead><tr><th class="lvl-own"></th><th>Lv</th><th>Defense</th><th>Gain</th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
+    }
     return h;
   }
   function renderPalicoDetail(key, data, id) {
@@ -754,7 +783,76 @@
         <button class="mat-tab ${matTab === "upgrade" ? "active" : ""}" data-tab="upgrade">Upgrade</button>
       </div><div class="mat-body">${body}</div>`;
   }
-  // Single Create recipe (armor, palico weapon, palico armor head/body).
+  // ── Armor materials ────────────────────────────────────────────────────
+  // Armor data comes straight from the game's tables: `create` is the level-1
+  // recipe (a trailing 1 on a pair marks the Key material), `byId[id][level]` the
+  // per-level upgrade cost, and `points[id][level]` a material-point cost paid
+  // from a category of materials rather than specific items.
+  function sumArmorMats(data, id, hi, lo) {
+    const rec = (data.byId || {})[String(id)] || {};
+    const merge = new Map();
+    for (let L = lo; L <= hi; L++)
+      for (const [mi, q] of rec[L] || []) {
+        const n = data.mats[mi];
+        merge.set(n, (merge.get(n) || 0) + q);
+      }
+    return merge;
+  }
+  // A material-point cost is paid with any materials from a category, so the
+  // category can be long — show a few and keep the rest in the tooltip.
+  function armorPointsHtml(data, id, level) {
+    const p = ((data.points || {})[String(id)] || {})[level];
+    if (!p) return "";
+    const members = (data.cats || [])[p[0]] || [];
+    const shown = members.slice(0, 3).join(", ");
+    const extra = members.length > 3 ? ` +${members.length - 3} more` : "";
+    const from = members.length ? ` from ${escapeHtml(shown)}${extra}` : "";
+    return `<ul class="mat-list"><li title="${escapeHtml(members.join(", "))}">`
+      + `<span class="mat-q">${p[1]}×</span> material points${from}</li></ul>`;
+  }
+  function armorMaterialsHtml(c, id, data) {
+    const create = (data.create || {})[String(id)];
+    const rec = (data.byId || {})[String(id)];
+    if (!create && !rec) return "";
+    const max = maxLevelOf(c, id);
+    let body;
+    if (matTab === "create") {
+      const zenny = (data.zenny || {})[String(id)];
+      body = create
+        ? `<div class="mat-step">Create${zenny ? ` · ${zenny}z` : ""}</div>${matPairsHtml(create, data.mats)}`
+        : '<div class="detail-note">No create recipe.</div>';
+    } else if (matTab === "upgrade") {
+      const start = isOwned(c, id) && ownedLevel(c, id) > 0 ? ownedLevel(c, id) : 1;
+      if (max <= 1) body = '<div class="detail-note">This armor has no upgrades.</div>';
+      else if (start >= max) body = '<div class="detail-note">Fully upgraded — no upgrades left.</div>';
+      else {
+        const label = isOwned(c, id) && ownedLevel(c, id) > 0 ? `From LV ${start} → ${max}` : `All upgrades · LV 1 → ${max}`;
+        let pts = "";
+        for (let L = start + 1; L <= max; L++) pts += armorPointsHtml(data, id, L);
+        body = `<div class="mat-step">${label}</div>${matNameListHtml(sumArmorMats(data, id, max, start + 1))}${pts}`;
+      }
+    } else {
+      const ref = refLevelOf(c, id);
+      if (max > 0 && ref >= max) body = '<div class="detail-note">Fully upgraded — no materials needed.</div>';
+      else if (ref === 0) {
+        const zenny = (data.zenny || {})[String(id)];
+        body = `<div class="mat-step">Create (LV 1)${zenny ? ` · ${zenny}z` : ""}</div>${matPairsHtml(create, data.mats)}`;
+      } else {
+        // Some levels cost only material points — don't print "None listed." above them.
+        const nl = ref + 1, pairs = rec && rec[nl], pts = armorPointsHtml(data, id, nl);
+        const items = (pairs && pairs.length) || !pts ? matPairsHtml(pairs, data.mats) : "";
+        body = `<div class="mat-step">Upgrade to LV ${nl}</div>${items}${pts}`;
+      }
+    }
+    return `<div class="detail-section-title">Crafting materials</div>
+      <div class="mat-tabs" data-role="mattabs">
+        <button class="mat-tab ${matTab === "next" ? "active" : ""}" data-tab="next">Next Level</button>
+        <button class="mat-tab ${matTab === "create" ? "active" : ""}" data-tab="create">Create</button>
+        <button class="mat-tab ${matTab === "upgrade" ? "active" : ""}" data-tab="upgrade">Upgrade</button>
+      </div><div class="mat-body">${body}</div>`;
+  }
+
+  // Single Create recipe (palico weapon, palico armor head/body).
   function createMaterialsHtml(c, id, data) {
     const rec = (c.kind === "p" && (c.key === "head" || c.key === "body"))
       ? (data[c.key] || {})[String(id)]     // palico armor file is keyed by slot
@@ -765,7 +863,9 @@
   function renderMaterials(c, id, data) {
     const el = $("detailMaterials"); if (!el) return;
     if (!data) { el.innerHTML = ""; return; }
-    el.innerHTML = c.kind === "w" ? weaponMaterialsHtml(c, id, data) : createMaterialsHtml(c, id, data);
+    el.innerHTML = c.kind === "w" ? weaponMaterialsHtml(c, id, data)
+      : c.kind === "a" ? armorMaterialsHtml(c, id, data)
+      : createMaterialsHtml(c, id, data);
     const tabs = el.querySelector('[data-role="mattabs"]');
     if (tabs) tabs.querySelectorAll("button").forEach(b =>
       b.addEventListener("click", () => { matTab = b.dataset.tab; renderMaterials(c, id, data); }));

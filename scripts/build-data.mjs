@@ -300,7 +300,10 @@ for (const slot of ARMOR_SLOTS) {
   }
   catalog.armor[slot.key] = { label: slot.name, icon: slot.icon, entries, remap };
   counts.armor += entries.length;
-  writeFileSync(join(OUT_STATS, 'armor_' + slot.key + '.json'), JSON.stringify({ slot: slot.key, byId: statById }));
+  // NOTE: armor stats are NOT written here. docs/data/stats/armor_*.json is owned by
+  // scripts/build-armor-data.mjs, which reads the game's own tables and is strictly
+  // more accurate (Kiranico drops skills on ~34 pieces and has wrong defense on some).
+  // `statById` is still computed above so the coverage warnings stay useful.
 }
 
 // Palico
@@ -350,7 +353,7 @@ writeFileSync(catalogPath, 'window.CATALOG = ' + JSON.stringify(catalog) + ';\n'
 // "<levelName> <level>", and each armor piece as one item. `components` links
 // created_item_id -> component_item_id (+ quantity). We attach the non-equipment
 // components to our catalog by name, per weapon level and per armor piece.
-const materialsReport = { weaponLevels: [0, 0], armorPieces: [0, 0], palicoWeapons: [0, 0], palicoArmor: [0, 0], skipped: false };
+const materialsReport = { weaponLevels: [0, 0], palicoWeapons: [0, 0], palicoArmor: [0, 0], skipped: false };
 if (!db) {
   warn(`materials: DB not found at ${DB_PATH} — skipping crafting materials (run with --db <path>)`);
   materialsReport.skipped = true;
@@ -372,9 +375,6 @@ if (!db) {
   const weaponItemId = new Map();
   for (const r of db.prepare('SELECT w._id id, w.wtype, i.name FROM weapons w JOIN items i ON i._id=w._id').all())
     weaponItemId.set(`${r.wtype} ${r.name}`, r.id);
-  const armorItemId = new Map();
-  for (const r of db.prepare('SELECT a._id id, i.name FROM armor a JOIN items i ON i._id=a._id').all())
-    if (!armorItemId.has(r.name)) armorItemId.set(r.name, r.id);
   const palicoWeaponItemId = new Map();
   for (const r of db.prepare('SELECT p._id id, i.name FROM palico_weapons p JOIN items i ON i._id=p._id').all())
     if (!palicoWeaponItemId.has(r.name)) palicoWeaponItemId.set(r.name, r.id);
@@ -446,18 +446,9 @@ if (!db) {
     }
     writeFileSync(join(OUT_MATERIALS, cls.slug + '.json'), JSON.stringify({ mats: intern.mats, byId, parents, create }));
   }
-  // Armor — per piece (Create recipe)
-  for (const slot of ARMOR_SLOTS) {
-    const intern = makeInterner();
-    const byId = {};
-    for (const entry of catalog.armor[slot.key].entries) {
-      materialsReport.armorPieces[1]++;
-      const gid = armorItemId.get(entry[1]);
-      const pairs = gid != null ? listToPairs(intern, gid) : null;
-      if (pairs) { byId[entry[0]] = pairs; materialsReport.armorPieces[0]++; }
-    }
-    writeFileSync(join(OUT_MATERIALS, 'armor_' + slot.key + '.json'), JSON.stringify({ mats: intern.mats, byId }));
-  }
+  // Armor materials are NOT written here — docs/data/materials/armor_*.json is owned
+  // by scripts/build-armor-data.mjs. mhgu.db omits a scrap material from 4412 of 5591
+  // armor recipes and has no upgrade-level data at all, so the game's own tables win.
   // Palico weapons — single Create recipe per piece
   {
     const intern = makeInterner();
@@ -523,10 +514,11 @@ if (!materialsReport.skipped) {
   let matTotal = 0;
   for (const f of readdirSync(OUT_MATERIALS)) matTotal += sizeOf(join(OUT_MATERIALS, f));
   console.log(`  materials/*.json (${readdirSync(OUT_MATERIALS).length} files): ${kb(matTotal)} total`);
-  const [wm, wt] = materialsReport.weaponLevels, [am, at] = materialsReport.armorPieces;
+  const [wm, wt] = materialsReport.weaponLevels;
   const [pwm, pwt] = materialsReport.palicoWeapons, [pam, pat] = materialsReport.palicoArmor;
-  console.log(`  materials coverage — weapon levels ${wm}/${wt}, armor pieces ${am}/${at}`);
+  console.log(`  materials coverage — weapon levels ${wm}/${wt}`);
   console.log(`  materials coverage — palico weapons ${pwm}/${pwt}, palico armor ${pam}/${pat}`);
+  console.log('  (armor stats + materials come from scripts/build-armor-data.mjs)');
 }
 console.log('  "Tonfa" present in output: ' + (JSON.stringify(catalog).includes('"Tonfa"') ? 'YES (BUG)' : 'no'));
 
