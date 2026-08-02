@@ -86,14 +86,19 @@
   let localSaveEnabled = true;  // keep the collection in this browser (opt-out)
   try { localSaveEnabled = localStorage.getItem(LOCAL_ENABLED_KEY) !== "0"; } catch (e) {}
   // Interaction settings (all opt-out; see the Settings dialog)
-  const settings = { clickLevel: true, ctrlRemove: true, altMax: true };
+  // Every switch in the Settings dialog. Persisted to localStorage so it survives
+  // a reload, and written into the save file so it travels with a collection.
+  // localSaveEnabled is deliberately NOT here — "save in this browser" is a
+  // property of this device, not of the collection.
+  const SETTING_KEYS = ["clickLevel", "ctrlRemove", "altMax", "dummy"];
+  const settings = { clickLevel: true, ctrlRemove: true, altMax: true, dummy: false };
+  const toggleSyncs = [];   // re-sync every switch after a save is loaded
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")); } catch (e) {}
   const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} };
   let viewMode = "grid";       // "grid" | "list"
   try { viewMode = localStorage.getItem("mhgu-tracker-view") || "grid"; } catch (e) {}
 
-  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", dummy: false, armorClass: "all", rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
-  let syncDummyToggle = null;   // set once the Settings switch is bound, below
+  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", armorClass: "all", rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
   const armorClassName = { B: "Blademaster", G: "Gunner", A: "Both" };
   const isDummy = name => /\(DUMMY\)/i.test(name);
   const dummyIds = new Map();   // "kind:key" -> Set(ids whose name is DUMMY)
@@ -209,12 +214,12 @@
   // deleted) so it returns if the user re-includes them.
   function catTotal(c) {
     const all = c.entries.length;
-    return filters.dummy ? all : all - dummyIds.get(catId(c)).size;
+    return settings.dummy ? all : all - dummyIds.get(catId(c)).size;
   }
   function catOwnedCount(c) {
     const m = owned.get(catId(c));
     const dset = dummyIds.get(catId(c));
-    if (filters.dummy || !dset.size) return m.size;
+    if (settings.dummy || !dset.size) return m.size;
     let n = 0; for (const id of m.keys()) if (!dset.has(id)) n++;
     return n;
   }
@@ -225,7 +230,7 @@
     const dset = dummyIds.get(catId(c));
     let n = 0;
     for (const [id, lv] of m) {
-      if (!filters.dummy && dset.has(id)) continue;
+      if (!settings.dummy && dset.has(id)) continue;
       const max = maxLevelOf(c, id);
       if (max === 0 || lv >= max) n++;
     }
@@ -333,7 +338,7 @@
     return current.entries.map(e => normalize(current, e));
   }
   function passesFilters(it) {
-    if (!filters.dummy && isDummy(it.name)) return false;
+    if (!settings.dummy && isDummy(it.name)) return false;
     // Armor-type filter: "Both" (A) pieces always pass; applies to armor only.
     if (it.kind === "a" && filters.armorClass !== "all" && it.armorClass !== "A" && it.armorClass !== filters.armorClass) return false;
     if (filters.text && !filters.searchAll) {
@@ -875,7 +880,9 @@
   // ── Save / load ────────────────────────────────────────────────────────
   function serializeSave() {
     const out = { app: SAVE_APP, version: SAVE_VERSION, savedAt: new Date().toISOString(),
-      showDummy: filters.dummy, owned: { w: {}, a: {}, p: {} }, levels: { w: {}, a: {}, p: {} } };
+      // showDummy stays for saves written before settings travelled with the file.
+      showDummy: settings.dummy, settings: { ...settings },
+      owned: { w: {}, a: {}, p: {} }, levels: { w: {}, a: {}, p: {} } };
     for (const c of CATS) {
       const m = owned.get(catId(c));
       const ids = [...m.keys()].sort((a, b) => a - b);
@@ -944,7 +951,13 @@
       }
     }
     if (unknownCount) toast(`${unknownCount} unrecognized id(s) preserved for re-export.`);
-    if (typeof obj.showDummy === "boolean") { filters.dummy = obj.showDummy; if (syncDummyToggle) syncDummyToggle(); }
+    // Settings travel with the save. showDummy is read first so older files still
+    // work; obj.settings then wins where both are present.
+    if (typeof obj.showDummy === "boolean") settings.dummy = obj.showDummy;
+    if (obj.settings && typeof obj.settings === "object")
+      for (const k of SETTING_KEYS) if (typeof obj.settings[k] === "boolean") settings[k] = obj.settings[k];
+    saveSettings();                      // an imported file's settings stick in this browser
+    for (const sync of toggleSyncs) sync();
     updateProgress();
     renderGrid();
     $("detailPanel").innerHTML = '<div class="detail-empty">Select an item to see its details.</div>';
@@ -1144,14 +1157,21 @@
     el.addEventListener("click", () => { set(!get()); sync(); });
     return sync;
   }
+  // Settings switches: write through to localStorage, and mark the file dirty
+  // since they are part of the save now. onChange runs any extra UI work.
+  function bindSetting(id, key, onChange) {
+    toggleSyncs.push(bindToggle(id, () => settings[key], v => {
+      settings[key] = v;
+      saveSettings();
+      markDirty();                       // also schedules the browser autosave
+      if (onChange) onChange();
+    }));
+  }
   // DUMMY gear is MHXX-only content left in MHGU's data; every entry is a weapon.
-  // Unlike the other switches this one lives in the save file (showDummy), not in
-  // settings, so loading a save has to re-sync it — see applySave.
-  syncDummyToggle = bindToggle("dummyToggle", () => filters.dummy,
-    v => { filters.dummy = v; renderGrid(); updateProgress(); });
-  bindToggle("clickLevelToggle", () => settings.clickLevel, v => { settings.clickLevel = v; saveSettings(); });
-  bindToggle("ctrlRemoveToggle", () => settings.ctrlRemove, v => { settings.ctrlRemove = v; saveSettings(); });
-  bindToggle("altMaxToggle", () => settings.altMax, v => { settings.altMax = v; saveSettings(); });
+  bindSetting("dummyToggle", "dummy", () => { renderGrid(); updateProgress(); });
+  bindSetting("clickLevelToggle", "clickLevel");
+  bindSetting("ctrlRemoveToggle", "ctrlRemove");
+  bindSetting("altMaxToggle", "altMax");
   bindToggle("localSaveToggle", () => localSaveEnabled, v => {
     localSaveEnabled = v;
     try {
