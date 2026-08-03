@@ -98,7 +98,9 @@ body{
 .panel{border:1px solid var(--line);border-radius:8px;overflow:clip;background:var(--bg2)}
 .panel-head{
   width:100%;text-align:left;background:transparent;border:none;color:var(--text);
-  padding:9px 14px;font-size:14px;font-weight:600;cursor:pointer;
+  /* left padding clears the banner texture's dark vertical band, which renders
+     out to ~13.5px at this header height — 14px put the text right on it */
+  padding:9px 14px 9px 20px;font-size:14px;font-weight:600;cursor:pointer;
   display:flex;justify-content:space-between;align-items:center;
   background-image:
     linear-gradient(color-mix(in srgb,var(--bg2) 80%,transparent),color-mix(in srgb,var(--bg2) 80%,transparent)),
@@ -124,7 +126,7 @@ body{
   text-shadow:-1px -1px 0 rgba(0,0,0,.85),1px -1px 0 rgba(0,0,0,.85),-1px 1px 0 rgba(0,0,0,.85),1px 1px 0 rgba(0,0,0,.85),-1px 0 0 rgba(0,0,0,.85),1px 0 0 rgba(0,0,0,.85),0 -1px 0 rgba(0,0,0,.85),0 1px 0 rgba(0,0,0,.85)}
 .cat-section-head{
   width:100%;text-align:left;border:none;color:var(--text);cursor:pointer;
-  padding:9px 14px;font-size:14px;font-weight:700;display:flex;justify-content:space-between;align-items:center;
+  padding:9px 14px 9px 20px;font-size:14px;font-weight:700;display:flex;justify-content:space-between;align-items:center;
   text-shadow:-1px -1px 0 rgba(0,0,0,.85),1px -1px 0 rgba(0,0,0,.85),-1px 1px 0 rgba(0,0,0,.85),1px 1px 0 rgba(0,0,0,.85),-1px 0 0 rgba(0,0,0,.85),1px 0 0 rgba(0,0,0,.85),0 -1px 0 rgba(0,0,0,.85),0 1px 0 rgba(0,0,0,.85);
   background-image:
     linear-gradient(color-mix(in srgb,var(--bg2) 80%,transparent),color-mix(in srgb,var(--bg2) 80%,transparent)),
