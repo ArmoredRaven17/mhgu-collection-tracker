@@ -101,7 +101,10 @@
   // localSaveEnabled is deliberately NOT here — "save in this browser" is a
   // property of this device, not of the collection.
   const SETTING_KEYS = ["clickLevel", "ctrlRemove", "altMax", "dummy"];
-  const settings = { clickLevel: true, ctrlRemove: true, altMax: true, dummy: false };
+  // boxSync is deliberately outside SETTING_KEYS: like localSaveEnabled it
+  // describes this browser rather than the collection, so opening someone
+  // else's save must not switch it for you.
+  const settings = { clickLevel: true, ctrlRemove: true, altMax: true, dummy: false, boxSync: true };
   const toggleSyncs = [];   // re-sync every switch after a save is loaded
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")); } catch (e) {}
   const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} };
@@ -235,6 +238,10 @@
   window.addEventListener("storage", e => {
     if (e.key !== AUTOSAVE_KEY) return;
     refreshCarriedFromStorage();
+    // A collection can span save files — several characters, or a record kept
+    // across a restart — so it is legitimately wider than any one equipment
+    // box. Anyone tracking that way can refuse the box's word for it.
+    if (!settings.boxSync) return;
     const added = mergeOwnedFromStorage();
     if (!added) return;
     updateProgress();
@@ -1412,6 +1419,16 @@
   }
   // DUMMY gear is MHXX-only content left in MHGU's data; every entry is a weapon.
   bindSetting("dummyToggle", "dummy", () => { renderGrid(); updateProgress(); });
+  toggleSyncs.push(bindToggle("boxSyncToggle", () => settings.boxSync, v => {
+    settings.boxSync = v;
+    saveSettings();
+    if (v) {
+      const added = mergeOwnedFromStorage();
+      if (added) { updateProgress(); renderGrid(); markDirty(); }
+      toast(added ? `Following the Equipment Box — ${added} piece(s) picked up.`
+                  : "Following the Equipment Box.");
+    } else toast("The Equipment Box will no longer change this collection.");
+  }));
   bindSetting("clickLevelToggle", "clickLevel");
   bindSetting("ctrlRemoveToggle", "ctrlRemove");
   bindSetting("altMaxToggle", "altMax");
