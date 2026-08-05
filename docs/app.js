@@ -218,10 +218,13 @@
         for (let id of bucket[key]) {
           if (!Number.isInteger(id)) continue;
           id = remapId(kind, key, id);
-          if (!valid.has(id) || m.has(id)) continue;
+          if (!valid.has(id)) continue;
           const level = Number(lv[id]);
-          m.set(id, Number.isInteger(level) && level > 0 ? level : 0);
-          added++;
+          const want = Number.isInteger(level) && level > 0 ? level : 0;
+          if (!m.has(id)) { m.set(id, want); added++; continue; }
+          // Already owned — but a level changed in the box should still show,
+          // since the box is where the piece actually is.
+          if (want && m.get(id) !== want) { m.set(id, want); added++; }
         }
       }
     }
