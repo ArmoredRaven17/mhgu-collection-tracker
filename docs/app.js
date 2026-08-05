@@ -154,14 +154,51 @@
     dirty = false; $("dirtyDot").classList.add("hidden"); document.title = "MHGU Collection Tracker";
   }
 
+  // The Equipment Box lives at a sibling path on the same origin, so it shares
+  // this localStorage. Both apps write the one document, each owning its own
+  // section — so re-read what's stored immediately before every write and merge
+  // into it, rather than writing back a copy that may be minutes stale. Without
+  // this, two tabs silently revert each other (which two tracker tabs already
+  // did to each other before the box existed).
+  function refreshCarriedFromStorage() {
+    let raw;
+    try { raw = localStorage.getItem(AUTOSAVE_KEY); } catch (e) { return; }
+    if (!raw) return;
+    let obj;
+    try { obj = JSON.parse(raw); } catch (e) { return; }
+    if (!obj || typeof obj !== "object") return;
+    const fresh = {};
+    for (const k of Object.keys(obj)) if (!OWN_KEYS.has(k)) fresh[k] = obj[k];
+    carriedKeys = fresh;
+  }
+  function writeLocalSave() {
+    refreshCarriedFromStorage();
+    try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(serializeSave())); } catch (e) {}
+  }
+  // Remove this app's half of the stored document. The key is only deleted
+  // outright when nothing else is using it — otherwise turning off browser
+  // storage here would take the Equipment Box's slots with it.
+  function dropOwnSectionFromStorage() {
+    refreshCarriedFromStorage();
+    try {
+      if (Object.keys(carriedKeys).length)
+        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ ...carriedKeys, app: SAVE_APP, version: SAVE_VERSION }));
+      else
+        localStorage.removeItem(AUTOSAVE_KEY);
+    } catch (e) {}
+  }
+
   let autosaveTimer = null;
   function scheduleAutosave() {
     if (!localSaveEnabled) return;
     clearTimeout(autosaveTimer);
-    autosaveTimer = setTimeout(() => {
-      try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(serializeSave())); } catch (e) {}
-    }, 500);
+    autosaveTimer = setTimeout(writeLocalSave, 500);
   }
+  // Another tab changed the shared document: pick up its half so a save from
+  // here carries the current version rather than the one loaded at startup.
+  window.addEventListener("storage", e => {
+    if (e.key === AUTOSAVE_KEY) refreshCarriedFromStorage();
+  });
 
   // ── Owned toggling ─────────────────────────────────────────────────────
   const ownedMapOf = c => owned.get(catId(c));
@@ -1125,7 +1162,7 @@
       // Flush any debounced write so a close right after a change isn't lost, then
       // let the page go — the collection is safe in this browser.
       clearTimeout(autosaveTimer);
-      try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(serializeSave())); } catch (err) {}
+      writeLocalSave();
       return;
     }
     if (dirty) { e.preventDefault(); e.returnValue = ""; }
@@ -1281,7 +1318,7 @@
     try {
       localStorage.setItem(LOCAL_ENABLED_KEY, localSaveEnabled ? "1" : "0");
       if (localSaveEnabled) scheduleAutosave();          // start keeping it now
-      else localStorage.removeItem(AUTOSAVE_KEY);        // opting out clears the stored copy
+      else dropOwnSectionFromStorage();                  // opting out clears the stored copy
     } catch (e) {}
     toast(localSaveEnabled ? "Saving your collection in this browser." : "Browser save turned off and cleared.");
   });
@@ -1293,7 +1330,7 @@
       + "This erases the saved copy and resets what's currently tracked. "
       + "Collections you've saved to a file are not affected.")) return;
     clearTimeout(autosaveTimer);
-    try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) {}
+    dropOwnSectionFromStorage();
     // Spread the carried keys back in: this clears the *collection*, and another
     // app's section of a shared file isn't part of it.
     applySave({ owned: {}, levels: {}, ...carriedKeys }); // resets state, re-renders, re-mirrors
