@@ -1176,14 +1176,73 @@
     }
     $("importFile").click();
   }
+  // ── Equipment Box files ────────────────────────────────────────────────
+  // A box file has no `owned` — but everything sitting in a box is something
+  // you have, so the collection can be read straight off it. Loading one here
+  // derives ownership and keeps the box section intact for the box app.
+  const BOX_TYPE_KEY = {
+    1: "a:head", 2: "a:chest", 3: "a:arms", 4: "a:waist", 5: "a:legs",
+    7: "w:great_sword", 8: "w:sword_and_shield", 9: "w:hammer", 10: "w:lance",
+    11: "w:heavy_bowgun", 13: "w:light_bowgun", 14: "w:long_sword", 15: "w:switch_axe",
+    16: "w:gunlance", 17: "w:bow", 18: "w:dual_blades", 19: "w:hunting_horn",
+    20: "w:insect_glaive", 21: "w:charge_blade",
+    22: "p:weapon", 23: "p:head", 24: "p:body",
+  };
+  function collectionFromBox(sections) {
+    const owned = { w: {}, a: {}, p: {} }, lv = { w: {}, a: {}, p: {} };
+    let talismans = 0, slots = 0;
+    for (const sec of sections) {
+      if (!sec || typeof sec !== "object" || !sec.entries) continue;
+      for (const k of Object.keys(sec.entries)) {
+        const e = sec.entries[k];
+        if (!e || !Number.isInteger(e.t) || !e.t) continue;
+        slots++;
+        // Talismans are rolled rather than collected, and have no category here.
+        if (e.t === 6) { talismans++; continue; }
+        const key = BOX_TYPE_KEY[e.t];
+        if (!key || !Number.isInteger(e.id)) continue;
+        const [kind, cat] = key.split(":");
+        (owned[kind][cat] || (owned[kind][cat] = new Set())).add(e.id);
+        const level = (Number.isInteger(e.lv) ? e.lv : 0) + 1;   // the box counts from 0
+        const map = lv[kind][cat] || (lv[kind][cat] = {});
+        if (!map[e.id] || level > map[e.id]) map[e.id] = level;
+      }
+    }
+    for (const kind of ["w", "a", "p"])
+      for (const cat of Object.keys(owned[kind]))
+        owned[kind][cat] = [...owned[kind][cat]].sort((a, b) => a - b);
+    return { owned, levels: lv, talismans, slots };
+  }
+  const isBoxFile = o => !!o && typeof o === "object" && o.app === "mhgu-equipment-box";
+  // Reshape a box file into this app's own format, box section and all, so the
+  // usual validate/apply path handles it — including the female-id remapping.
+  function trackerObjFromBox(obj) {
+    const d = collectionFromBox([obj.player, obj.palico]);
+    return {
+      obj: { app: SAVE_APP, version: SAVE_VERSION, savedAt: obj.savedAt,
+             settings: {}, owned: d.owned, levels: d.levels,
+             box: { version: obj.version || 1, player: obj.player, palico: obj.palico } },
+      derived: d,
+    };
+  }
+
   function loadFromText(text) {
     let obj;
     try { obj = JSON.parse(text); } catch (e) { toast("That file isn't valid JSON."); return; }
+    let note = "Collection loaded.";
+    if (isBoxFile(obj)) {
+      const { obj: reshaped, derived } = trackerObjFromBox(obj);
+      const n = ["w", "a", "p"].reduce((sum, k) =>
+        sum + Object.values(reshaped.owned[k]).reduce((m, a) => m + a.length, 0), 0);
+      obj = reshaped;
+      note = `Equipment Box file — ${derived.slots} slot(s), ${n} piece(s) marked owned`
+        + (derived.talismans ? `, ${derived.talismans} talisman(s) skipped` : "") + ".";
+    }
     const err = validateSave(obj);
     if (err) { toast(err); return; }
     applySave(obj);
     clearDirty();
-    toast("Collection loaded.");
+    toast(note, 5000);
   }
 
   $("importFile").addEventListener("change", function () {
