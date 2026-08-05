@@ -194,10 +194,49 @@
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(writeLocalSave, 500);
   }
+  // Pieces marked owned by another app (the Equipment Box's "Mark Box as Owned")
+  // land in the stored document without this tab knowing. Take them — additively,
+  // so nothing here is ever un-owned by a write from elsewhere, and an edit in
+  // progress is never undone. Returns how many were new.
+  function mergeOwnedFromStorage() {
+    let raw;
+    try { raw = localStorage.getItem(AUTOSAVE_KEY); } catch (e) { return 0; }
+    if (!raw) return 0;
+    let obj;
+    try { obj = JSON.parse(raw); } catch (e) { return 0; }
+    if (!obj || !obj.owned || typeof obj.owned !== "object") return 0;
+    let added = 0;
+    for (const kind of ["w", "a", "p"]) {
+      const bucket = obj.owned[kind];
+      if (!bucket || typeof bucket !== "object") continue;
+      const levelBucket = (obj.levels && obj.levels[kind]) || {};
+      for (const key of Object.keys(bucket)) {
+        const cid = `${kind}:${key}`;
+        const valid = validIds.get(cid), m = owned.get(cid);
+        if (!valid || !m || !Array.isArray(bucket[key])) continue;
+        const lv = levelBucket[key] || {};
+        for (let id of bucket[key]) {
+          if (!Number.isInteger(id)) continue;
+          id = remapId(kind, key, id);
+          if (!valid.has(id) || m.has(id)) continue;
+          const level = Number(lv[id]);
+          m.set(id, Number.isInteger(level) && level > 0 ? level : 0);
+          added++;
+        }
+      }
+    }
+    return added;
+  }
   // Another tab changed the shared document: pick up its half so a save from
   // here carries the current version rather than the one loaded at startup.
   window.addEventListener("storage", e => {
-    if (e.key === AUTOSAVE_KEY) refreshCarriedFromStorage();
+    if (e.key !== AUTOSAVE_KEY) return;
+    refreshCarriedFromStorage();
+    const added = mergeOwnedFromStorage();
+    if (!added) return;
+    updateProgress();
+    renderGrid();
+    toast(`${added} piece(s) marked owned from the Equipment Box.`);
   });
 
   // ── Owned toggling ─────────────────────────────────────────────────────
@@ -1046,6 +1085,11 @@
     if (obj.levels != null && typeof obj.levels !== "object") return "Collection data is malformed.";
     return null;
   }
+  // Female armor ids map to the canonical piece this app tracks.
+  const remapId = (kind, key, id) => {
+    if (kind === "a") { const rm = (C.armor[key] && C.armor[key].remap) || {}; if (rm[id] != null) return rm[id]; }
+    return id;
+  };
   function applySave(obj) {
     for (const c of CATS) owned.get(catId(c)).clear();
     unknownOwned.w = {}; unknownOwned.a = {}; unknownOwned.p = {};
@@ -1053,10 +1097,6 @@
     carriedKeys = {};
     for (const k of Object.keys(obj)) if (!OWN_KEYS.has(k)) carriedKeys[k] = obj[k];
     let unknownCount = 0;
-    const remapId = (kind, key, id) => {
-      if (kind === "a") { const rm = (C.armor[key] && C.armor[key].remap) || {}; if (rm[id] != null) return rm[id]; }
-      return id;
-    };
     for (const kind of ["w", "a", "p"]) {
       const bucket = obj.owned[kind]; if (!bucket) continue;
       for (const [key, ids] of Object.entries(bucket)) {
