@@ -80,6 +80,12 @@
   for (const c of CATS) owned.set(catId(c), new Map());
   const unknownOwned = { w: {}, a: {}, p: {} };   // preserved unknown ids, re-exported verbatim
   const unknownLevels = { w: {}, a: {}, p: {} };  // preserved levels for unknown ids
+  // Top-level keys in the loaded file that this app doesn't own — currently the
+  // Equipment Box's `box` section. serializeSave() builds a fresh object, so
+  // without carrying these forward a save here would silently delete another
+  // app's half of a shared file.
+  const OWN_KEYS = new Set(["app", "version", "savedAt", "showDummy", "settings", "owned", "levels"]);
+  let carriedKeys = {};
   let dirty = false;
   let fileHandle = null;
   let current = CATS[0];
@@ -970,7 +976,9 @@
 
   // ── Save / load ────────────────────────────────────────────────────────
   function serializeSave() {
-    const out = { app: SAVE_APP, version: SAVE_VERSION, savedAt: new Date().toISOString(),
+    // carriedKeys goes on first so this app's own fields always win.
+    const out = { ...carriedKeys,
+      app: SAVE_APP, version: SAVE_VERSION, savedAt: new Date().toISOString(),
       // showDummy stays for saves written before settings travelled with the file.
       showDummy: settings.dummy, settings: { ...settings },
       owned: { w: {}, a: {}, p: {} }, levels: { w: {}, a: {}, p: {} } };
@@ -1005,6 +1013,8 @@
     for (const c of CATS) owned.get(catId(c)).clear();
     unknownOwned.w = {}; unknownOwned.a = {}; unknownOwned.p = {};
     unknownLevels.w = {}; unknownLevels.a = {}; unknownLevels.p = {};
+    carriedKeys = {};
+    for (const k of Object.keys(obj)) if (!OWN_KEYS.has(k)) carriedKeys[k] = obj[k];
     let unknownCount = 0;
     const remapId = (kind, key, id) => {
       if (kind === "a") { const rm = (C.armor[key] && C.armor[key].remap) || {}; if (rm[id] != null) return rm[id]; }
@@ -1284,7 +1294,9 @@
       + "Collections you've saved to a file are not affected.")) return;
     clearTimeout(autosaveTimer);
     try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) {}
-    applySave({ owned: {}, levels: {} });               // resets state, re-renders, re-mirrors
+    // Spread the carried keys back in: this clears the *collection*, and another
+    // app's section of a shared file isn't part of it.
+    applySave({ owned: {}, levels: {}, ...carriedKeys }); // resets state, re-renders, re-mirrors
     clearDirty();
     toast("Browser save cleared.");
   });
