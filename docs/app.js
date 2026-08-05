@@ -418,6 +418,7 @@
     return { kind: c.kind, key: c.key, cat: c, id: entry[0], name: entry[1], rar: entry[2] || 0,
       final: c.kind === "w" ? entry[3] : 0, stages: c.kind === "w" ? (entry[5] || []) : [],
       names: entryNames(c.kind, entry),
+      order: c.kind === "w" ? (entry[6] || 0) : c.kind === "a" ? (entry[8] || 0) : 0,
       armorClass: c.kind === "a" ? (entry[7] || "A") : "",
       iconSlug: c.iconSlug };
   }
@@ -459,13 +460,19 @@
     }
     return true;
   }
-  // Rarity ordering: 1 → 2 → … → 10 → X(11), matching the Save App's in-game sort
-  // within a class. Unknown rarity (0) sorts last; ties keep in-game (id) order.
+  // Rarity ordering: 1 → 2 → … → 10 → X(11). Unknown rarity (0), which is what
+  // DUMMY entries carry, sorts last.
   const rarKey = r => (r === 0 ? 99 : r);
+  // Within a rarity the game has its own order that the id does not encode — it mostly
+  // ascends but makes deliberate exceptions (Bow "Razor Striker" follows "Hellish
+  // Wrath"; armor "Nightcloak" precedes "Rustrazor"). Weapons carry that order from the
+  // source stat files as entry[6], armor from ARMOR_ORDER_BEFORE as entry[8]. Palico
+  // gear has no such signal and falls back to id.
+  const orderKey = it => it.order || Infinity;
   function sortItems(items) {
-    // Rarity (default) also serves as the in-game ordering (rarity asc, id tie-break).
     if (filters.sort === "name") items.sort((a, b) => a.name.localeCompare(b.name));
-    else items.sort((a, b) => (rarKey(a.rar) - rarKey(b.rar)) || (a.id - b.id));
+    else items.sort((a, b) =>
+      (rarKey(a.rar) - rarKey(b.rar)) || (orderKey(a) - orderKey(b)) || (a.id - b.id));
     return items;
   }
   function ownedBadgeHtml(it) {

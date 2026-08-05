@@ -50,6 +50,31 @@ const WEAPON_CLASSES = [
   { name: 'Heavy Bowgun',    slug: 'heavy_bowgun',     file: 'heavybowgun.json' },
 ];
 
+// Armor lists in game are ordered by id, but with occasional exceptions the id does
+// not encode — the same way weapon trees have them. Each pair is [id, comesBeforeId].
+// Series ids are shared across all five slots, so one list covers every slot.
+// Verified against Kiranico's Rare 11 list: Nightcloak precedes Rustrazor.
+// Kiranico groups Blademaster before Gunner, but that is its own layout: the game's
+// ids interleave B/G at every rarity, so we keep the interleaving.
+// Both halves of a B/G pair target the SAME anchor so the pair stays adjacent —
+// aiming the Gunner half at the Gunner anchor would split them (1110B 1108B 1111G).
+const ARMOR_ORDER_BEFORE = [
+  [1110, 1108],   // Nightcloak Blademaster before Rustrazor Blademaster
+  [1111, 1108],   // Nightcloak Gunner lands right after it, ahead of the Rustrazor pair
+];
+// Resolve the exceptions into an explicit position per id.
+function armorOrderIndex(ids) {
+  const seq = [...ids].sort((a, b) => a - b);
+  for (const [moved, target] of ARMOR_ORDER_BEFORE) {
+    const from = seq.indexOf(moved);
+    if (from < 0) continue;
+    seq.splice(from, 1);
+    const to = seq.indexOf(target);
+    seq.splice(to < 0 ? seq.length : to, 0, moved);
+  }
+  return new Map(seq.map((id, i) => [id, i + 1]));
+}
+
 const ARMOR_SLOTS = [
   { name: 'Head',  key: 'head',  equipType: '1', icon: 'armor_head' },
   { name: 'Chest', key: 'chest', equipType: '2', icon: 'armor_body' },
@@ -160,6 +185,13 @@ for (const cls of WEAPON_CLASSES) {
 
   const kiranico = JSON.parse(readFileSync(join(ASSETS, cls.file), 'utf8'));
   const treeByBase = new Map();
+  // The stat file's `trees` array is in the game's own list order: grouped by rarity,
+  // but within a rarity NOT in id order — the game makes deliberate exceptions that
+  // the id simply doesn't encode (e.g. Bow "Razor Striker" sits right after "Hellish
+  // Wrath", four places earlier than its id would put it). Record each tree's position
+  // so the app can sort on it; sorting on id cannot reproduce these.
+  const orderByBase = new Map();
+  kiranico.trees.forEach((t, i) => orderByBase.set(fixMojibake(t.baseName), i + 1));
   for (const t of kiranico.trees) treeByBase.set(fixMojibake(t.baseName), t);
   const nameToId = new Map(Object.entries(names).map(([id, n]) => [n, Number(id)]));
 
@@ -204,7 +236,7 @@ for (const cls of WEAPON_CLASSES) {
     // "(DUMMY)" (matching how Kiranico already tags e.g. Twin Star Blades).
     let displayName = name;
     if (!tree && !/\(DUMMY\)/i.test(name)) { displayName = `${name} (DUMMY)`; dummyWeapons++; }
-    entries.push([Number(id), displayName, rar[id] || 0, finalName, maxLevel, stages]);
+    entries.push([Number(id), displayName, rar[id] || 0, finalName, maxLevel, stages, orderByBase.get(name) || 0]);
   }
   catalog.weapons[cls.slug] = { label: cls.name, icon: cls.slug, entries };
   counts.weapons += entries.length;
@@ -268,6 +300,7 @@ for (const slot of ARMOR_SLOTS) {
   const entries = [];
   const statById = {};
 
+  const armorOrder = armorOrderIndex(sortIds(names).filter(id => !drop.has(id)));
   for (const id of sortIds(names)) {
     if (drop.has(id)) continue;
     if (femaleToMale.has(id)) {                // female variant: fold into male, skip
@@ -280,7 +313,7 @@ for (const slot of ARMOR_SLOTS) {
     for (const [fid, mid] of femaleToMale) {
       if (mid === id && names[fid]) { femaleId = fid; femaleName = names[fid]; break; }
     }
-    entries.push([id, name, rar[id] || 0, deco[id] || 0, setByName.get(name) || 0, femaleId, femaleName, armorClassByName.get(name) || 'A']);
+    entries.push([id, name, rar[id] || 0, deco[id] || 0, setByName.get(name) || 0, femaleId, femaleName, armorClassByName.get(name) || 'A', armorOrder.get(id) || 0]);
 
     const k = armorKir[name];
     if (k) {
