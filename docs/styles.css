@@ -245,6 +245,18 @@ body{
 .detail-head{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px}
 .detail-icon{width:52px;height:52px;object-fit:contain;flex-shrink:0}
 .detail-title{font-size:16px;font-weight:700;line-height:1.25}
+/* Gender restriction. Only shown when a piece is actually restricted — most
+   armor is wearable by either, and a pill on 4543 of 5607 entries would be noise. */
+.gender-pill{
+  display:inline-block;vertical-align:middle;margin-left:6px;
+  padding:1px 7px;border-radius:9px;
+  font-size:10px;line-height:1.5;font-weight:600;letter-spacing:.02em;
+  white-space:nowrap
+}
+.gender-pill.g0{background:#12365e;color:#8fc6ff;border:1px solid #2b6096}
+.gender-pill.g1{background:#5a1830;color:#ff9ec0;border:1px solid #94304f}
+.list-name .gender-pill{font-size:9px;padding:0 6px}
+
 .detail-sub{font-size:12px;opacity:.7;margin-top:3px}
 .detail-owned-btn{
   width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);cursor:pointer;

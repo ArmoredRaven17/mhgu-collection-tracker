@@ -220,7 +220,6 @@
         const lv = levelBucket[key] || {};
         for (let id of bucket[key]) {
           if (!Number.isInteger(id)) continue;
-          id = remapId(kind, key, id);
           if (!valid.has(id)) continue;
           const level = Number(lv[id]);
           const want = Number.isInteger(level) && level > 0 ? level : 0;
@@ -420,6 +419,7 @@
       names: entryNames(c.kind, entry),
       order: c.kind === "w" ? (entry[6] || 0) : c.kind === "a" ? (entry[8] || 0) : 0,
       armorClass: c.kind === "a" ? (entry[7] || "A") : "",
+      gender: c.kind === "a" ? (entry[5] || 0) : 2,
       iconSlug: c.iconSlug };
   }
   function currentItems() {
@@ -496,7 +496,7 @@
     const rarLabel = it.rar >= 1 ? rarityLabel(it.rar) : "–";
     return `<div class="list-row${rc}${on ? " owned" : ""}" data-id="${it.id}" data-cat="${it.kind}:${it.key}" title="${escapeHtml(it.name)}">
       <img class="list-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="" loading="lazy">
-      <span class="list-name">${escapeHtml(it.name)}</span>
+      <span class="list-name">${escapeHtml(it.name)}${genderPill(it.gender)}</span>
       <span class="list-rar">R${rarLabel}</span>${html}</div>`;
   }
   function renderGrid() {
@@ -735,6 +735,10 @@
     document.querySelectorAll("#detailStats .lvl-row").forEach(tr =>
       tr.addEventListener("click", () => setLevel(c, id, Number(tr.dataset.lv))));
   }
+  // 0 male-only, 1 female-only, 2 either. Only the restrictions are worth saying.
+  const GENDER_LABEL = { 0: "Male Only", 1: "Female Only" };
+  const genderPill = g => (GENDER_LABEL[g]
+    ? ` <span class="gender-pill g${g}">${GENDER_LABEL[g]}</span>` : "");
   function detailHead(c, entry) {
     const name = entry[1];
     let title = escapeHtml(name);
@@ -745,11 +749,16 @@
     }
     let sub = "";
     if (c.kind === "a") {
-      const femaleName = entry[6];
       const parts = [armorClassName[entry[7] || "A"], `Rarity ${entry[2] ? rarityLabel(entry[2]) : "?"}`];
       if (entry[4]) parts.push(escapeHtml(entry[4]) + " set");
       sub = parts.join(" · ");
-      if (femaleName) title = `${escapeHtml(name)} <span style="opacity:.6">/</span> ${escapeHtml(femaleName)}`;
+      title += genderPill(entry[5]);
+      // Its opposite-gender twin, so the pair is findable from either side.
+      const pairId = entry[6];
+      if (pairId) {
+        const twin = c.entries.find(e => e[0] === pairId);
+        if (twin) sub += ` · ${entry[5] === 1 ? "Male" : "Female"} version: ${escapeHtml(twin[1])}`;
+      }
     } else {
       sub = `Rarity ${entry[2] ? rarityLabel(entry[2]) : "?"}`;
     }
@@ -1102,11 +1111,9 @@
     if (obj.levels != null && typeof obj.levels !== "object") return "Collection data is malformed.";
     return null;
   }
-  // Female armor ids map to the canonical piece this app tracks.
-  const remapId = (kind, key, id) => {
-    if (kind === "a") { const rm = (C.armor[key] && C.armor[key].remap) || {}; if (rm[id] != null) return rm[id]; }
-    return id;
-  };
+  // Armor used to fold each female variant into its male counterpart, remapping
+  // the id on load. Both halves are listed separately now — a collection can
+  // span a male and a female save — so an id always means itself.
   function applySave(obj) {
     for (const c of CATS) owned.get(catId(c)).clear();
     unknownOwned.w = {}; unknownOwned.a = {}; unknownOwned.p = {};
@@ -1121,7 +1128,6 @@
         const valid = validIds.get(cid);
         const m = owned.get(cid);
         for (let id of ids) {
-          id = remapId(kind, key, id);   // female → canonical
           if (valid && valid.has(id)) { if (!m.has(id)) m.set(id, 0); }
           else { (unknownOwned[kind][key] ||= []).push(id); unknownCount++; }
         }
@@ -1137,7 +1143,7 @@
           const valid = validIds.get(cid);
           const m = owned.get(cid);
           for (let [rawId, rawLv] of Object.entries(map)) {
-            const id = remapId(kind, key, Number(rawId)), lv = Number(rawLv);
+            const id = Number(rawId), lv = Number(rawLv);
             if (!Number.isInteger(lv) || lv <= 0) continue;
             if (valid && valid.has(id)) m.set(id, lv);
             else ((unknownLevels[kind][key] ||= {}))[id] = lv;
