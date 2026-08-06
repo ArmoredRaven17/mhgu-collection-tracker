@@ -17,3 +17,6 @@ data-src/
 romfs/
 extracted/
 /.vs/mhgu-collection-tracker.slnx/FileContentIndex/844bbc47-bc46-48ae-976d-bf176f8dad25.vsidx
+
+# Visual Studio local IDE state
+.vs/
