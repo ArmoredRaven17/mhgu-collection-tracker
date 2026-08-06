@@ -254,9 +254,44 @@ const genderMap = J('gender_armor_map.json');
 
 const setByName = new Map(mhguArmors.armor_pieces.map(p => [p.name, p.set_name || 0]));
 
-// female_id -> male_id (pairs apply across all slots)
+// female_id -> male_id (pairs apply across all slots). Both halves are listed —
+// a collection can span a male and a female save, so folding one into the other
+// makes half the armor unmarkable. The pairing is kept only to cross-reference.
 const femaleToMale = new Map();
-for (const grp of genderMap) for (const p of grp.pairs) femaleToMale.set(p.female_id, p.male_id);
+const maleToFemale = new Map();
+for (const grp of genderMap) for (const p of grp.pairs) {
+  femaleToMale.set(p.female_id, p.male_id);
+  maleToFemale.set(p.male_id, p.female_id);
+}
+
+// Which gender can wear a piece: 0 male-only, 1 female-only, 2 either. Resolved
+// the way the save editor does — the pair map and the non-craftable sets name it
+// outright, Kiranico covers most of the rest, and a piece nothing knows about is
+// assumed wearable by either.
+const GENDER_WORD = { Male: 0, Female: 1, Both: 2 };
+const kirGenderBySlotName = new Map(), kirGenderByName = new Map();
+for (const pc of mhguArmors.armor_pieces) {
+  const g = GENDER_WORD[pc.gender];
+  if (g === undefined) continue;
+  kirGenderBySlotName.set(`${pc.slot_type}|${pc.name}`, g);
+  if (!kirGenderByName.has(pc.name)) kirGenderByName.set(pc.name, g);
+  else if (kirGenderByName.get(pc.name) !== g) kirGenderByName.set(pc.name, 2);
+}
+const genderById = new Map();
+for (const grp of genderMap) for (const p of grp.pairs) {
+  genderById.set(p.male_id, 0);
+  genderById.set(p.female_id, 1);
+}
+for (const e of nonCraft.male_pub_sets) genderById.set(e.equip_id, 0);
+for (const e of nonCraft.female_pub_sets) genderById.set(e.equip_id, 1);
+function armorGenderOf(slotName, id, name) {
+  const known = genderById.get(id);
+  if (known !== undefined) return known;
+  const bySlot = kirGenderBySlotName.get(`${slotName}|${name}`);
+  if (bySlot !== undefined) return bySlot;
+  const byName = kirGenderByName.get(name);
+  return byName === undefined ? 2 : byName;
+}
 
 // non-craftable drop set, per equipType -> Set(equip_id)
 const dropByType = {};
@@ -296,24 +331,19 @@ for (const slot of ARMOR_SLOTS) {
   const rar = armorRarity[slot.name] || {};
   const deco = armorSlots[slot.equipType] || {};
   const drop = dropByType[slot.equipType] || new Set();
-  const remap = {};                            // femaleId -> maleId, for import
   const entries = [];
   const statById = {};
 
   const armorOrder = armorOrderIndex(sortIds(names).filter(id => !drop.has(id)));
   for (const id of sortIds(names)) {
     if (drop.has(id)) continue;
-    if (femaleToMale.has(id)) {                // female variant: fold into male, skip
-      remap[id] = femaleToMale.get(id);
-      continue;
-    }
     const name = names[id];
-    // find female counterpart id in this slot (if this id is a male in a pair)
-    let femaleId = 0, femaleName = 0;
-    for (const [fid, mid] of femaleToMale) {
-      if (mid === id && names[fid]) { femaleId = fid; femaleName = names[fid]; break; }
-    }
-    entries.push([id, name, rar[id] || 0, deco[id] || 0, setByName.get(name) || 0, femaleId, femaleName, armorClassByName.get(name) || 'A', armorOrder.get(id) || 0]);
+    const gender = armorGenderOf(slot.name, id, name);
+    // The counterpart in this slot, so the detail panel can point at it. Both
+    // halves are entries in their own right now.
+    const counterpart = femaleToMale.has(id) ? femaleToMale.get(id) : (maleToFemale.get(id) || 0);
+    const pairId = counterpart && names[counterpart] ? counterpart : 0;
+    entries.push([id, name, rar[id] || 0, deco[id] || 0, setByName.get(name) || 0, gender, pairId, armorClassByName.get(name) || 'A', armorOrder.get(id) || 0]);
 
     const k = armorKir[name];
     if (k) {
@@ -331,7 +361,7 @@ for (const slot of ARMOR_SLOTS) {
       warn(`armor ${slot.name}: no stats for "${name}" (id ${id}) in Kiranico or DB`);
     }
   }
-  catalog.armor[slot.key] = { label: slot.name, icon: slot.icon, entries, remap };
+  catalog.armor[slot.key] = { label: slot.name, icon: slot.icon, entries };
   counts.armor += entries.length;
   // NOTE: armor stats are NOT written here. docs/data/stats/armor_*.json is owned by
   // scripts/build-armor-data.mjs, which reads the game's own tables and is strictly
