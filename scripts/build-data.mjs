@@ -243,7 +243,7 @@ for (const cls of WEAPON_CLASSES) {
   writeFileSync(join(OUT_STATS, cls.slug + '.json'), JSON.stringify({ class: cls.slug, byId }));
 }
 
-// Armor — dedupe (non-craftable drop + gender merge) then catalog + stats
+// Armor — every id in the game's tables, catalog + stats
 const armorRaw = J('armor.json');
 const armorRarity = J('armor_rarity.json');
 const armorSlots = J('armor_slots.json');       // keyed by equipType "1".."5"
@@ -293,10 +293,9 @@ function armorGenderOf(slotName, id, name) {
   return byName === undefined ? 2 : byName;
 }
 
-// non-craftable drop set, per equipType -> Set(equip_id)
-const dropByType = {};
-for (const list of Object.values(nonCraft))
-  for (const { equip_type, equip_id } of list) (dropByType[equip_type] ||= new Set()).add(equip_id);
+// nonCraft lists gear that has no forge recipe — the feathers and earrings, and
+// the Barmaid's/Barman's pub sets. It is still given to players and still sits in
+// the box, so it is listed like anything else; only its gender is read from here.
 
 // Open the MHGU DB once (fills armor stats missing from Kiranico, and builds
 // materials below). Null if the DB isn't present — everything else still builds.
@@ -330,13 +329,11 @@ for (const slot of ARMOR_SLOTS) {
   const names = armorRaw[slot.name];           // id -> name
   const rar = armorRarity[slot.name] || {};
   const deco = armorSlots[slot.equipType] || {};
-  const drop = dropByType[slot.equipType] || new Set();
   const entries = [];
   const statById = {};
 
-  const armorOrder = armorOrderIndex(sortIds(names).filter(id => !drop.has(id)));
+  const armorOrder = armorOrderIndex(sortIds(names));
   for (const id of sortIds(names)) {
-    if (drop.has(id)) continue;
     const name = names[id];
     const gender = armorGenderOf(slot.name, id, name);
     // The counterpart in this slot, so the detail panel can point at it. Both
