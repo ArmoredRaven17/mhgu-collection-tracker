@@ -83,11 +83,6 @@ was written with [Claude Code](https://claude.com/claude-code), Anthropic's AI
 coding tool, working from the author's direction and reviewed before landing.
 Commits made that way carry a `Co-Authored-By: Claude` trailer.
 
-**The game data is not AI-generated.** It is extracted from the game's own data
-tables and from the community databases credited in [NOTICE.md](NOTICE.md), and
-`build-armor-data.mjs --check` cross-validates every decoded field against
-`mhgu.db`. The AI wrote the extraction code; it did not supply the numbers.
-
 ## Licensing
 
 Code is MIT (see [LICENSE](LICENSE)). Game data and icons come from third
