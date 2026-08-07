@@ -1382,6 +1382,7 @@
     $(modalId).addEventListener("click", e => { if (e.target.id === modalId) $(modalId).classList.add("hidden"); });
   }
   bindModal("aboutBtn", "aboutModal", "aboutClose");
+  bindModal("linksBtn", "linksModal", "linksClose");
   $("themeBtn").addEventListener("click", () => $("themeModal").classList.remove("hidden"));
   $("themeClose").addEventListener("click", () => $("themeModal").classList.add("hidden"));
   $("themeModal").addEventListener("click", e => { if (e.target.id === "themeModal") $("themeModal").classList.add("hidden"); });
