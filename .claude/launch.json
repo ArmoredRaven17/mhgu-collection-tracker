@@ -6,6 +6,18 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8123", "--directory", "docs"],
       "port": 8123
+    },
+    {
+      "name": "box",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8126", "--directory", "C:/Coding Repos/mhgu-equipment-box/docs"],
+      "port": 8126
+    },
+    {
+      "name": "randomizer",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8127", "--directory", "C:/Coding Repos/MHGU Quest Randomizer/docs"],
+      "port": 8127
     }
   ]
 }
