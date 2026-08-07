@@ -150,13 +150,6 @@ documentation was written with **[Claude Code](https://claude.com/claude-code)**
 This is disclosed for transparency rather than to satisfy a licence term. The
 project's code remains MIT-licensed (see [LICENSE](LICENSE)).
 
-**No AI-generated content stands in for the attributed data above.** The armor
-numbers come from the game's own tables and are cross-validated against
-`mhgu.db`; the weapon and Palico data and all English naming come from the
-community sources credited under *Game Data*. The model wrote the code that
-reads those sources — it did not supply the facts, and nothing in
-[docs/data/](docs/data/) was authored by a model.
-
 A separate and unrelated use of AI applies to the **equipment icons**: the
 Real-ESRGAN upscale described under *Icons*, which is inherited from the
 mhgu-editor project rather than performed here.
