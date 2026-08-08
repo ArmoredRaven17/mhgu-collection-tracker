@@ -111,7 +111,10 @@
   let viewMode = "grid";       // "grid" | "list"
   try { viewMode = localStorage.getItem("mhgu-tracker-view") || "grid"; } catch (e) {}
 
-  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", armorClass: "all", rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
+  // Bit order must match ELEMENT_BITS in scripts/build-data.mjs — weapon entry[7]
+  // is a mask of every element/status the tree carries at any level.
+  const ELEMENTS = ["Fire", "Water", "Thunder", "Ice", "Dragon", "Poison", "Paralysis", "Sleep", "Blast"];
+  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", armorClass: "all", element: "all", rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
   const armorClassName = { B: "Blademaster", G: "Gunner", A: "Both" };
   const isDummy = name => /\(DUMMY\)/i.test(name);
   const dummyIds = new Map();   // "kind:key" -> Set(ids whose name is DUMMY)
@@ -418,6 +421,7 @@
       final: c.kind === "w" ? entry[3] : 0, stages: c.kind === "w" ? (entry[5] || []) : [],
       names: entryNames(c.kind, entry),
       order: c.kind === "w" ? (entry[6] || 0) : c.kind === "a" ? (entry[8] || 0) : 0,
+      ele: c.kind === "w" ? (entry[7] || 0) : 0,
       armorClass: c.kind === "a" ? (entry[7] || "A") : "",
       gender: c.kind === "a" ? (entry[5] || 0) : 2,
       iconSlug: c.iconSlug };
@@ -441,6 +445,15 @@
     if (filters.text && !filters.searchAll) {
       const q = filters.text.toLowerCase();
       if (!it.names.some(n => n.toLowerCase().includes(q))) return false;
+    }
+    // Element applies to weapons only. The control stays visible on every category,
+    // matching the Armor type filter, which likewise only bites on its own kind.
+    if (filters.element !== "all" && it.kind === "w") {
+      if (filters.element === "none") { if (it.ele) return false; }
+      else {
+        const bit = ELEMENTS.indexOf(filters.element);
+        if (bit < 0 || !((it.ele >> bit) & 1)) return false;
+      }
     }
     if (it.rar >= 1 && !filters.rarity.has(it.rar)) return false;
     if (filters.owned !== "all") {
@@ -1303,6 +1316,7 @@
   document.querySelectorAll('input[name="ownedFilter"]').forEach(r =>
     r.addEventListener("change", function () { if (this.checked) { filters.owned = this.value; renderGrid(); } }));
   $("sortSelect").addEventListener("change", function () { filters.sort = this.value; renderGrid(); });
+  $("elementSelect").addEventListener("change", function () { filters.element = this.value; renderGrid(); });
   document.querySelectorAll('input[name="armorClassFilter"]').forEach(r =>
     r.addEventListener("change", function () { if (this.checked) { filters.armorClass = this.value; renderGrid(); } }));
   function setView(v) {
