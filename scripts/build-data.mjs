@@ -106,6 +106,22 @@ function fixMojibake(s) {
   return /�/.test(repaired) ? s : repaired;
 }
 
+// Element/status filtering needs to work off the catalog, which is loaded up front,
+// not the per-class stat files, which are lazy. So each weapon tree carries a bitmask
+// of every element it has at ANY level. Only 11 of 1592 trees vary across levels, so
+// the union is almost always just "the" element. Order must match ELEMENTS in app.js.
+const ELEMENT_BITS = ['Fire', 'Water', 'Thunder', 'Ice', 'Dragon', 'Poison', 'Paralysis', 'Sleep', 'Blast'];
+function elementMask(levels) {
+  let mask = 0;
+  for (const l of levels || [])
+    for (const e of (l.ele || [])) {
+      const i = ELEMENT_BITS.indexOf(e[0]);
+      if (i >= 0) mask |= 1 << i;
+      else warn(`unknown element type "${e[0]}"`);
+    }
+  return mask;
+}
+
 function normElements(l) {
   const out = [];
   const push = e => { if (e && e.type) out.push(e.awakened ? [e.type, e.value, 1] : [e.type, e.value]); };
@@ -236,7 +252,7 @@ for (const cls of WEAPON_CLASSES) {
     // "(DUMMY)" (matching how Kiranico already tags e.g. Twin Star Blades).
     let displayName = name;
     if (!tree && !/\(DUMMY\)/i.test(name)) { displayName = `${name} (DUMMY)`; dummyWeapons++; }
-    entries.push([Number(id), displayName, rar[id] || 0, finalName, maxLevel, stages, orderByBase.get(name) || 0]);
+    entries.push([Number(id), displayName, rar[id] || 0, finalName, maxLevel, stages, orderByBase.get(name) || 0, elementMask(byId[id])]);
   }
   catalog.weapons[cls.slug] = { label: cls.name, icon: cls.slug, entries };
   counts.weapons += entries.length;
@@ -247,7 +263,6 @@ for (const cls of WEAPON_CLASSES) {
 const armorRaw = J('armor.json');
 const armorRarity = J('armor_rarity.json');
 const armorSlots = J('armor_slots.json');       // keyed by equipType "1".."5"
-const armorKir = J('armor_kiranico.json');       // by name
 const mhguArmors = J('mhgu_armors.json');
 const nonCraft = J('non_craftable_armor.json');
 const genderMap = J('gender_armor_map.json');
@@ -304,33 +319,16 @@ if (existsSync(DB_PATH)) {
   const { DatabaseSync } = await import('node:sqlite');
   db = new DatabaseSync(DB_PATH, { readOnly: true });
 }
-// DB armor stats by name (fallback for the ~104 pieces absent from armor_kiranico.json)
-const dbArmorStats = new Map();
-if (db) {
-  const skillsByItem = new Map();
-  for (const r of db.prepare('SELECT ist.item_id iid, s.name, ist.point_value pv FROM item_to_skill_tree ist JOIN skill_trees s ON s._id=ist.skill_tree_id').all()) {
-    let l = skillsByItem.get(r.iid); if (!l) skillsByItem.set(r.iid, l = []); l.push([r.name, r.pv]);
-  }
-  for (const r of db.prepare('SELECT a._id id, i.name, a.defense, a.max_defense, a.fire_res, a.water_res, a.thunder_res, a.ice_res, a.dragon_res, a.num_slots FROM armor a JOIN items i ON i._id=a._id').all())
-    if (!dbArmorStats.has(r.name)) dbArmorStats.set(r.name, {
-      def: [r.defense || 0, r.max_defense || 0],
-      res: [r.fire_res || 0, r.water_res || 0, r.thunder_res || 0, r.ice_res || 0, r.dragon_res || 0],
-      slots: r.num_slots || 0,
-      sk: skillsByItem.get(r.id) || [],
-    });
-}
 // Blademaster/Gunner tag by name (hunter_type: 0=Blademaster, 1=Gunner, 2=Both).
 const armorClassByName = new Map();
 if (db) for (const r of db.prepare('SELECT i.name, a.hunter_type ht FROM armor a JOIN items i ON i._id=a._id').all())
   if (!armorClassByName.has(r.name)) armorClassByName.set(r.name, r.ht === 0 ? 'B' : r.ht === 1 ? 'G' : 'A');
-let armorFilledFromDb = 0;
 
 for (const slot of ARMOR_SLOTS) {
   const names = armorRaw[slot.name];           // id -> name
   const rar = armorRarity[slot.name] || {};
   const deco = armorSlots[slot.equipType] || {};
   const entries = [];
-  const statById = {};
 
   const armorOrder = armorOrderIndex(sortIds(names));
   for (const id of sortIds(names)) {
@@ -342,28 +340,13 @@ for (const slot of ARMOR_SLOTS) {
     const pairId = counterpart && names[counterpart] ? counterpart : 0;
     entries.push([id, name, rar[id] || 0, deco[id] || 0, setByName.get(name) || 0, gender, pairId, armorClassByName.get(name) || 'A', armorOrder.get(id) || 0]);
 
-    const k = armorKir[name];
-    if (k) {
-      const r = k.resistances || {};
-      statById[id] = {
-        def: [k.defense_min ?? 0, k.defense_max ?? 0],
-        res: [r.fire || 0, r.water || 0, r.thunder || 0, r.ice || 0, r.dragon || 0],
-        slots: k.slots || 0,
-        sk: (k.skills || []).map(s => [s.name, s.points]),
-      };
-    } else if (dbArmorStats.has(name)) {
-      statById[id] = dbArmorStats.get(name);   // fallback: fill from mhgu.db
-      armorFilledFromDb++;
-    } else {
-      warn(`armor ${slot.name}: no stats for "${name}" (id ${id}) in Kiranico or DB`);
-    }
   }
   catalog.armor[slot.key] = { label: slot.name, icon: slot.icon, entries };
   counts.armor += entries.length;
-  // NOTE: armor stats are NOT written here. docs/data/stats/armor_*.json is owned by
-  // scripts/build-armor-data.mjs, which reads the game's own tables and is strictly
-  // more accurate (Kiranico drops skills on ~34 pieces and has wrong defense on some).
-  // `statById` is still computed above so the coverage warnings stay useful.
+  // Armor stats are NOT built here. docs/data/stats/armor_*.json is owned by
+  // scripts/build-armor-data.mjs, which reads the game's own tables. The old
+  // Kiranico/DB stat fallback lived here and has been removed: its source file
+  // (armor_kiranico.json) is gone and its output was already unused.
 }
 
 // Palico
@@ -561,7 +544,7 @@ if (doIcons) {
 // ── Report ──────────────────────────────────────────────────────────────
 console.log('\n── Counts ──');
 console.log(`  weapons: ${counts.weapons} (${dummyWeapons} labelled DUMMY — no stats)`);
-console.log(`  armor:   ${counts.armor} (${armorFilledFromDb} stat blocks filled from DB)`);
+console.log(`  armor:   ${counts.armor}`);
 console.log(`  palico:  ${counts.palico}`);
 console.log(`  total:   ${counts.weapons + counts.armor + counts.palico}`);
 console.log('\n── Output sizes ──');
