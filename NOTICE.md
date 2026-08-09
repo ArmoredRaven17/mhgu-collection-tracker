@@ -70,9 +70,7 @@ the data could not have been obtained without them:
 ### Kiranico (https://mhgu.kiranico.com/)
 
 Weapon and Palico-equipment names and stat tables originate from Kiranico's
-MHGU database, by way of the
-[mhgu-editor](https://github.com/redacted/mhgu-editor) project's data
-files. They are compiled into [docs/data/catalog.js](docs/data/catalog.js)
+MHGU database. They are compiled into [docs/data/catalog.js](docs/data/catalog.js)
 and [docs/data/stats/](docs/data/stats/) by
 [scripts/build-data.mjs](scripts/build-data.mjs). Kiranico does not publish
 a formal data license; this attribution is offered as courtesy
@@ -111,9 +109,9 @@ The equipment-type icons under [docs/assets/icons/](docs/assets/icons/)
 (`icon_<slug>.png` Base variants plus the `_r1`–`_r10` and `_rX`
 rarity-coloured variants) are sourced from
 [Category:MHGU Equipment Icons](https://monsterhunterwiki.org/wiki/Category:MHGU_Equipment_Icons)
-on the independent Monster Hunter Wiki, via the mhgu-editor project's
-AI-upscale/tint pipeline (Real-ESRGAN upscale of each 24×24 Base to 96×96,
-then per-rarity multiply tints matching the wiki source colours).
+on the independent Monster Hunter Wiki, then put through an AI-upscale/tint
+pipeline (Real-ESRGAN upscale of each 24×24 Base to 96×96, then per-rarity
+multiply tints matching the wiki source colours).
 
 **monsterhunterwiki.org content is licensed under
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).** By the
@@ -151,8 +149,8 @@ This is disclosed for transparency rather than to satisfy a licence term. The
 project's code remains MIT-licensed (see [LICENSE](LICENSE)).
 
 A separate and unrelated use of AI applies to the **equipment icons**: the
-Real-ESRGAN upscale described under *Icons*, which is inherited from the
-mhgu-editor project rather than performed here.
+Real-ESRGAN upscale described under *Icons*, which is inherited from that
+upstream icon pipeline rather than performed here.
 
 ---
 

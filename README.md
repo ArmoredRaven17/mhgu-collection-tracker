@@ -38,10 +38,9 @@ Then open http://localhost:8000/.
 Two generators, with separate ownership of the output files — they do not
 overlap, so the order does not matter.
 
-**1. Weapons, Palico gear, the catalog and icons** come from the
-[mhgu-editor](https://github.com/redacted/mhgu-editor) repo's data files
-(which in turn derive from Kiranico), plus crafting-material recipes from the MHGU
-database (`mhgu.db`):
+**1. Weapons, Palico gear, the catalog and icons** come from the save editor's
+data files (which in turn derive from Kiranico), plus crafting-material recipes
+from the MHGU database (`mhgu.db`):
 
 ```
 node scripts/build-data.mjs "C:/Coding Repos/mhgu-editor" --icons
