@@ -14,6 +14,12 @@
       "port": 8126
     },
     {
+      "name": "builder",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8128", "--directory", "C:/Coding Repos/mhgu-set-builder/docs"],
+      "port": 8128
+    },
+    {
       "name": "randomizer",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8127", "--directory", "C:/Coding Repos/MHGU Quest Randomizer/docs"],
