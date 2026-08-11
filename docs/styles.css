@@ -382,3 +382,15 @@ body{
 .app-links a,.app-name{font-weight:600;font-size:14px}
 .app-here{font-weight:400;font-size:11px;opacity:.7;border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin-left:7px}
 .app-desc{display:block;margin-top:3px;font-size:12px;opacity:.8;line-height:1.4}
+
+/* Weapon stat filters: several selects stacked in one group. .filter-group is a block
+   container, so it must be made flex for `gap` to do anything at all. */
+#weaponStatGroup{display:flex;flex-direction:column;gap:6px}
+#weaponStatGroup .filter-label{margin-bottom:0}
+.filter-hint{font-weight:400;opacity:.6;font-size:10px}
+
+/* Class-specific filters are injected into a bare div, which does not pick up the
+   .filter-group margin — without this the last one sits flush against Rarity. */
+#classFilters{display:flex;flex-direction:column;gap:10px;margin-bottom:10px}
+#classFilters:empty{margin-bottom:0}
+#classFilters .filter-group{margin-bottom:0}

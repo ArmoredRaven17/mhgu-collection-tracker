@@ -114,7 +114,7 @@
   // Bit order must match ELEMENT_BITS in scripts/build-data.mjs — weapon entry[7]
   // is a mask of every element/status the tree carries at any level.
   const ELEMENTS = ["Fire", "Water", "Thunder", "Ice", "Dragon", "Poison", "Paralysis", "Sleep", "Blast"];
-  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", armorClass: "all", element: "all", rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
+  const filters = { text: "", searchAll: false, owned: "all", sort: "rarity", armorClass: "all", element: "all", aff: "all", slots: "all", def: "all", cls: {}, rarity: new Set([1,2,3,4,5,6,7,8,9,10,11,0]) };
   const armorClassName = { B: "Blademaster", G: "Gunner", A: "Both" };
   const isDummy = name => /\(DUMMY\)/i.test(name);
   const dummyIds = new Map();   // "kind:key" -> Set(ids whose name is DUMMY)
@@ -422,6 +422,8 @@
       names: entryNames(c.kind, entry),
       order: c.kind === "w" ? (entry[6] || 0) : c.kind === "a" ? (entry[8] || 0) : 0,
       ele: c.kind === "w" ? (entry[7] || 0) : 0,
+      st: c.kind === "w" ? (entry[8] || null) : null,   // [raw, affinity, defBonus, slots], final form
+      cx: c.kind === "w" ? (entry[9] || null) : null,   // class-specific payload, see CLASS_FILTERS
       armorClass: c.kind === "a" ? (entry[7] || "A") : "",
       gender: c.kind === "a" ? (entry[5] || 0) : 2,
       iconSlug: c.iconSlug };
@@ -446,6 +448,20 @@
       const q = filters.text.toLowerCase();
       if (!it.names.some(n => n.toLowerCase().includes(q))) return false;
     }
+    // Final-form numeric stats. Weapons only; a tree with no stats (DUMMY) has no
+    // array and is excluded whenever any of these is active rather than sneaking through.
+    if (it.kind === "w" && (filters.aff !== "all" || filters.slots !== "all" || filters.def !== "all")) {
+      const st = it.st;
+      if (!st) return false;
+      const [, aff, def, slots] = st;
+      if (filters.aff === "pos"     && !(aff > 0)) return false;
+      if (filters.aff === "neg"     && !(aff < 0)) return false;
+      if (filters.aff === "neutral" && aff !== 0) return false;
+      // Exact slot count, not "at least" — people often want precisely 2.
+      if (filters.slots !== "all" && slots !== Number(filters.slots)) return false;
+      if (filters.def === "yes" && !def) return false;
+    }
+    if (!passesClassFilters(it)) return false;
     // Element applies to weapons only. The control stays visible on every category,
     // matching the Armor type filter, which likewise only bites on its own kind.
     if (filters.element !== "all" && it.kind === "w") {
@@ -672,6 +688,115 @@
       <div class="mat-view-body">${bodyHtml}</div></div>`;
   }
 
+
+  // ── Class-specific weapon filters ──────────────────────────────────────
+  // Only rendered for the classes that have the attribute — a Phial dropdown on a
+  // Hunting Horn is wrong, not merely clutter. Values are indexes into the same
+  // ordered lists build-data.mjs used, so these arrays are a wire format: append,
+  // never reorder. `k` is the short key stored in catalog entry[9].
+  const SHARPNESS  = ["Red", "Orange", "Yellow", "Green", "Blue", "White", "Purple"];
+  const NOTE_NAMES = ["White", "Cyan", "Red", "Purple", "Yellow", "Green", "Sky Blue", "Orange"];
+  const GUNS = ["light_bowgun", "heavy_bowgun"];
+  const MELEE = ["great_sword", "long_sword", "sword_and_shield", "dual_blades", "hammer",
+    "hunting_horn", "lance", "gunlance", "switch_axe", "charge_blade", "insect_glaive"];
+  const CLASS_FILTERS = [
+    // Max sharpness is stored per band (base / S+1 / S+2) packed into one number. Each
+    // option picks a band AND a colour, e.g. "Green (S+2)", so a player who runs
+    // Handicraft can ask a different question from one who does not.
+    { k: "sh", label: "Max Sharpness", classes: MELEE, sharp: true },
+    { k: "p",  label: "Phial",     classes: ["charge_blade", "switch_axe"],
+      opts: ["Impact", "Element", "Power", "Dragon", "Exhaust", "Poison", "Paralysis"] },
+    { k: "s",  label: "Shelling",  classes: ["gunlance"], opts: ["Normal", "Long", "Wide"] },
+    { k: "sl", label: "Shell level", classes: ["gunlance"], opts: ["Lv1", "Lv2", "Lv3", "Lv4", "Lv5"], base: 1 },
+    { k: "k",  label: "Kinsect",   classes: ["insect_glaive"], opts: ["Cutting", "Blunt"] },
+    { k: "a",  label: "Arc shot",  classes: ["bow"], opts: ["Focus", "Wide", "Blast"] },
+    { k: "r",  label: "Reload",    classes: GUNS, opts: ["V. Slow", "Bel.Avg", "Average", "Abv.Avg", "V. Fast"] },
+    { k: "rc", label: "Recoil",    classes: GUNS, opts: ["Low", "Some", "Avg.", "High"] },
+    { k: "d",  label: "Deviation", classes: GUNS,
+      opts: ["None", "L Mild", "R Mild", "LR Mild", "L Severe", "R Severe", "LR Severe"] },
+    // A horn's notes are an ordered triple packed into one number. Options are derived
+    // from the data so the list cannot drift from what actually exists.
+    { k: "n",  label: "Note combo", classes: ["hunting_horn"], combo: true },
+  ];
+  function classFiltersFor(c) {
+    return c.kind === "w" ? CLASS_FILTERS.filter(f => f.classes.includes(c.key)) : [];
+  }
+  const noteCombo = v => [(v >> 6) & 7, (v >> 3) & 7, v & 7].map(i => NOTE_NAMES[i]).join(" / ");
+  const SHARP_BANDS = ["Base", "S+1", "S+2"];
+  const sharpAt = (packed, band) => (packed >> (6 - band * 3)) & 7;
+  // One option per (colour, band) pair that actually occurs, colour-major so the three
+  // bands for a colour sit together. Option value packs band and colour: band * 8 + colour.
+  function sharpOptions() {
+    const seen = new Set();
+    for (const e of current.entries) {
+      const p = e[9] && e[9].sh;
+      if (p == null) continue;
+      for (let b = 0; b < 3; b++) seen.add(b * 8 + sharpAt(p, b));
+    }
+    return [...seen]
+      .sort((a, b) => (a % 8) - (b % 8) || Math.floor(a / 8) - Math.floor(b / 8))
+      .map(v => [v, `${SHARPNESS[v % 8]} (${SHARP_BANDS[Math.floor(v / 8)]})`]);
+  }
+  // Options come from the values actually present in the current class, never from the
+  // full list: Charge Blades only have Impact and Element phials while Switch Axes have
+  // no Impact at all, and sharpness tops out differently per class (Lance reaches Green
+  // but never Blue). Offering an option that can only ever return nothing is a bug.
+  // Option values are the raw stored value, so the filter test is a plain equality.
+  function optionsFor(f) {
+    if (f.sharp) return sharpOptions();
+    const seen = new Map();
+    for (const e of current.entries) {
+      const x = e[9];
+      if (!x) continue;
+      const v = x[f.k];
+      if (v == null || seen.has(v)) continue;
+      seen.set(v, f.combo ? noteCombo(v) : (f.opts[f.base ? v - f.base : v] ?? String(v)));
+    }
+    const out = [...seen].sort((a, b) => (f.combo ? a[1].localeCompare(b[1]) : a[0] - b[0]));
+    if (!f.atLeast) return out;
+    // "or better": drop the lowest value (it would match everything) and label the rest.
+    return out.slice(1).map(([v, label], i, arr) => [v, i === arr.length - 1 ? label : `${label} or better`]);
+  }
+  function renderClassFilters() {
+    const wrap = $("classFilters");
+    if (!wrap) return;
+    const list = classFiltersFor(current);
+    wrap.innerHTML = list.map(f => {
+      const pairs = optionsFor(f);
+      if (pairs.length < 2) return "";      // a filter with one possible value filters nothing
+      return `<div class="filter-group">
+      <div class="filter-label">${escapeHtml(f.label)}</div>
+      <select class="mini-select" data-ck="${f.k}">
+        <option value="all">Any</option>
+        ${pairs.map(([v, o]) => `<option value="${v}">${escapeHtml(o)}</option>`).join("")}
+      </select></div>`;
+    }).join("");
+    wrap.querySelectorAll("select").forEach(sel => {
+      const key = sel.dataset.ck;
+      if (filters.cls[key] != null) sel.value = String(filters.cls[key]);
+      sel.addEventListener("change", () => {
+        if (sel.value === "all") delete filters.cls[key]; else filters.cls[key] = Number(sel.value);
+        renderGrid();
+      });
+    });
+  }
+  // A weapon passes when every active class filter matches its entry[9] payload.
+  function passesClassFilters(it) {
+    const keys = Object.keys(filters.cls);
+    if (!keys.length) return true;
+    if (it.kind !== "w") return true;
+    const x = it.cx;
+    if (!x) return false;
+    for (const key of keys) {
+      const def = CLASS_FILTERS.find(f => f.k === key);
+      const want = filters.cls[key];
+      if (def && def.sharp) {
+        if (x.sh == null || sharpAt(x.sh, Math.floor(want / 8)) !== want % 8) return false;
+      } else if (x[key] !== want) return false;
+    }
+    return true;
+  }
+
   // The level-based Show filters only mean something for weapons (armor/palico have no
   // levels, so owned == maxed). Disable them elsewhere, falling back to "All" if active.
   function updateLevelFilterAvailability() {
@@ -693,6 +818,10 @@
   function selectCategory(c) {
     current = c;
     selectedId = null;
+    // Class filters do not survive a class change — a Phial setting means nothing on
+    // a Hunting Horn, and leaving it set would filter invisibly.
+    filters.cls = {};
+    renderClassFilters();
     updateLevelFilterAvailability();
     document.querySelectorAll(".cat-row").forEach(r => r.classList.toggle("active", r.dataset.cat === catId(c)));
     $("catTitle").textContent = c.label;
@@ -1317,6 +1446,9 @@
     r.addEventListener("change", function () { if (this.checked) { filters.owned = this.value; renderGrid(); } }));
   $("sortSelect").addEventListener("change", function () { filters.sort = this.value; renderGrid(); });
   $("elementSelect").addEventListener("change", function () { filters.element = this.value; renderGrid(); });
+  $("affSelect").addEventListener("change", function () { filters.aff = this.value; renderGrid(); });
+  $("slotSelect").addEventListener("change", function () { filters.slots = this.value; renderGrid(); });
+  $("defSelect").addEventListener("change", function () { filters.def = this.value; renderGrid(); });
   document.querySelectorAll('input[name="armorClassFilter"]').forEach(r =>
     r.addEventListener("change", function () { if (this.checked) { filters.armorClass = this.value; renderGrid(); } }));
   function setView(v) {

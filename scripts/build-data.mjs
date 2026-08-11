@@ -122,6 +122,67 @@ function elementMask(levels) {
   return mask;
 }
 
+// Universal numeric stats for filtering, taken from the tree's FINAL form — that is
+// what people compare weapons on, and raw/affinity/slots all climb as a weapon
+// upgrades. Emitted as [raw, affinity, defenceBonus, slotCount]; 0 when the tree has
+// no stats at all (DUMMY entries), which keeps those entries tiny.
+function finalStats(levels) {
+  const L = levels && levels[levels.length - 1];
+  if (!L) return 0;
+  return [L.raw || 0, L.aff || 0, L.def || 0, (L.slots || '').split('').filter(c => c === '◯').length];
+}
+
+// Class-specific attributes for filtering, again from the tree's FINAL form and again
+// baked into the catalog because filtering runs before the stat files load. Values are
+// indexes into these lists (or a bitmask for notes), which keeps the catalog small.
+// These orderings are the filter's wire format — append, never reorder.
+const PHIALS     = ['Impact', 'Element', 'Power', 'Dragon', 'Exhaust', 'Poison', 'Paralysis'];
+const SHELLS     = ['Normal', 'Long', 'Wide'];
+const KINSECTS   = ['Cutting', 'Blunt'];
+const ARCS       = ['Focus', 'Wide', 'Blast'];
+const NOTES      = ['White', 'Cyan', 'Red', 'Purple', 'Yellow', 'Green', 'Sky Blue', 'Orange'];
+const RELOADS    = ['V. Slow', 'Bel.Avg', 'Average', 'Abv.Avg', 'V. Fast'];     // slow → fast
+const RECOILS    = ['Low', 'Some', 'Avg.', 'High'];                             // low → high
+const DEVIATIONS = ['(None)', 'L Mild', 'R Mild', 'LR Mild', 'L Severe', 'R Severe', 'LR Severe'];
+const SHARPNESS  = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'White', 'Purple'];
+
+// Highest sharpness colour reached in EACH band — base, Sharpness+1, Sharpness+2 —
+// packed as (base << 6) | (plus1 << 3) | plus2, each an index into SHARPNESS. The band
+// matters: a weapon can sit at Blue base and reach Purple only with +2, and which of
+// those a player cares about depends on whether they run Handicraft.
+function maxSharp(l) {
+  if (!l.sh || !l.sh.length) return undefined;
+  const top = band => { let t = -1; band.forEach((v, i) => { if (v) t = i; }); return t; };
+  const tops = l.sh.map(top);
+  while (tops.length < 3) tops.push(tops[tops.length - 1]);   // pad if a band is absent
+  if (tops.some(t => t < 0)) return undefined;
+  return (tops[0] << 6) | (tops[1] << 3) | tops[2];
+}
+
+// Short keys keep the catalog compact: p=phial, s=shell type, sl=shell level,
+// k=kinsect, a=arc shot, n=note bitmask, r=reload, rc=recoil, d=deviation, sh=sharpness.
+function classFilters(levels) {
+  const L = levels && levels[levels.length - 1];
+  if (!L) return 0;
+  const o = {}, x = L.x || {};
+  const put = (key, list, val) => { const i = list.indexOf(val); if (i >= 0) o[key] = i; else if (val != null) warn(`unmapped ${key}: "${val}"`); };
+  if (x.phial)   put('p', PHIALS, x.phial.split(' ')[0]);
+  if (x.shell)   { put('s', SHELLS, x.shell.split(' ')[0]); const m = /Lv(\d+)/.exec(x.shell); if (m) o.sl = Number(m[1]); }
+  if (x.kinsect) put('k', KINSECTS, x.kinsect.type);
+  if (x.arc)     put('a', ARCS, x.arc);
+  // A horn's three notes are an ORDERED combo (first is always White or Purple, no
+  // repeats), so pack the triple rather than using a bitmask, which would lose order.
+  if (x.notes && x.notes.length === 3) {
+    const idx = x.notes.map(n => NOTES.indexOf(n));
+    if (idx.every(i => i >= 0)) o.n = (idx[0] << 6) | (idx[1] << 3) | idx[2];
+    else warn(`unmapped horn note in ${x.notes.join('/')}`);
+  }
+  if (x.stats)   { put('r', RELOADS, x.stats.reload); put('rc', RECOILS, x.stats.recoil); put('d', DEVIATIONS, x.stats.deviation); }
+  const sh = maxSharp(L);
+  if (sh !== undefined) o.sh = sh;
+  return Object.keys(o).length ? o : 0;
+}
+
 function normElements(l) {
   const out = [];
   const push = e => { if (e && e.type) out.push(e.awakened ? [e.type, e.value, 1] : [e.type, e.value]); };
@@ -252,7 +313,7 @@ for (const cls of WEAPON_CLASSES) {
     // "(DUMMY)" (matching how Kiranico already tags e.g. Twin Star Blades).
     let displayName = name;
     if (!tree && !/\(DUMMY\)/i.test(name)) { displayName = `${name} (DUMMY)`; dummyWeapons++; }
-    entries.push([Number(id), displayName, rar[id] || 0, finalName, maxLevel, stages, orderByBase.get(name) || 0, elementMask(byId[id])]);
+    entries.push([Number(id), displayName, rar[id] || 0, finalName, maxLevel, stages, orderByBase.get(name) || 0, elementMask(byId[id]), finalStats(byId[id]), classFilters(byId[id])]);
   }
   catalog.weapons[cls.slug] = { label: cls.name, icon: cls.slug, entries };
   counts.weapons += entries.length;
