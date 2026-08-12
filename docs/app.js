@@ -1622,6 +1622,23 @@
     p.dataset.open = p.dataset.open === "true" ? "false" : "true";
   }));
 
+  // ── Deep links ─────────────────────────────────────────────────────────
+  // `#a:head/617` opens that piece straight away, so a sibling app (the Set
+  // Builder's search results) can point at a piece to show its materials and
+  // upgrade costs. Anything unparseable is ignored — a stale or hand-mangled
+  // link must never stop the app from loading.
+  function openFromHash() {
+    const m = /^#([wap]):([a-z_]+)\/(\d+)$/.exec(location.hash || "");
+    if (!m) return false;
+    const c = catByIdMap.get(`${m[1]}:${m[2]}`);
+    if (!c) return false;
+    const id = Number(m[3]);
+    if (!c.entries.some(e => e[0] === id)) return false;
+    selectCategory(c);
+    openDetail(c, id);
+    return true;
+  }
+
   // ── Init ───────────────────────────────────────────────────────────────
   buildSidebar();
   buildRarityFilters();
@@ -1633,6 +1650,9 @@
   selectCategory(CATS[0]);
   updateProgress();
   loadFromBrowser();
+  // After loadFromBrowser so the piece opens against the restored collection.
+  openFromHash();
+  window.addEventListener("hashchange", openFromHash);
 
   // Custom-font repaint fix (selects/text can clip before the font loads)
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => {
