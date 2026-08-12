@@ -20,6 +20,12 @@
       "port": 8128
     },
     {
+      "name": "monsterinfo",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8129", "--directory", "C:/Coding Repos/MHGU-Monster-Info/docs"],
+      "port": 8129
+    },
+    {
       "name": "randomizer",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8127", "--directory", "C:/Coding Repos/MHGU Quest Randomizer/docs"],
