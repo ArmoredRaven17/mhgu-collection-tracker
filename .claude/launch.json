@@ -30,6 +30,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8127", "--directory", "C:/Coding Repos/MHGU Quest Randomizer/docs"],
       "port": 8127
+    },
+    {
+      "name": "weapontrees",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8131", "--directory", "C:/Coding Repos/mhgu-weapon-trees/docs"],
+      "port": 8131
     }
   ]
 }
