@@ -208,7 +208,7 @@
   // describes this browser rather than the collection, so opening someone
   // else's save must not switch it for you.
   const settings = { clickLevel: true, ctrlRemove: true, altMax: true, dummy: false, shiftTarget: true,
-                     spendMats: true, boxSync: true };
+                     spendMats: true, boxSync: false };
   const toggleSyncs = [];   // re-sync every switch after a save is loaded
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")); } catch (e) {}
   const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} };
