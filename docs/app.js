@@ -938,6 +938,7 @@
     grid.innerHTML = note + summaryHtml + rows.map(rowHtml).join("");
     grid.querySelectorAll(".totals-row").forEach(el => {
       el.querySelector(".mat-view-head").addEventListener("click", ev => {
+        if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey) return;   // let the gesture through
         el.classList.toggle("open");
         // Plain click = expand/collapse only. Without this it also reaches the grid
         // handler, which treats a second click on the already-open piece as "level up".
@@ -1134,9 +1135,13 @@
     if (viewMode === "checklist") renderChecklistView();
   });
   $("grid").addEventListener("click", ev => {
-    // Checklist rows carry data-id/data-cat and reuse .mat-view-row, so without this a
-    // click on an inventory input would bubble up and open (or own) the piece.
+    // Checklist rows carry data-id/data-cat and reuse .mat-view-row, so any click inside
+    // one would otherwise reach the ownership logic below — clicking a material line to
+    // read it would mark the piece owned, or level it up. In the checklist a plain click
+    // does nothing at all; expanding is handled by the row's own head listener, and the
+    // modifier gestures still work so you can tick a piece off once you have built it.
     if (ev.target.closest("input, button, select, label")) return;
+    if (viewMode === "checklist" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) return;
     const cell = ev.target.closest(".box-cell, .list-row, .mat-view-row");
     if (!cell) return;
     const c = catByIdMap.get(cell.dataset.cat);
