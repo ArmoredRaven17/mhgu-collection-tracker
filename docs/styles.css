@@ -407,11 +407,19 @@ body{
 .detail-target-btn.is-target{background:#ffd2571f;border-color:#ffd25788;color:#ffd257}
 .chk-summary .mat-view-head .list-name{font-weight:700}
 /* The inventory input is the only editable surface — one per material, in the summary. */
-.chk-have{width:62px;margin-left:auto;background:var(--bg2);color:var(--text);
+/* Material lists are repeated numeric rows, so they get aligned columns rather than
+   inline text. Summary and per-target tables share Material / Need / Have / Short. */
+.chk-table{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:auto}
+.chk-table th{text-align:left;opacity:.6;font-weight:600;font-size:11px;
+  padding:2px 8px 4px 0;white-space:nowrap}
+.chk-table td{padding:3px 8px 3px 0;border-top:1px solid #ffffff0d;vertical-align:middle}
+.chk-table th.num,.chk-table td.num{text-align:right;width:1%;white-space:nowrap;
+  font-variant-numeric:tabular-nums;padding-right:0}
+.chk-table th.num:not(:last-child),.chk-table td.num:not(:last-child){padding-right:14px}
+.chk-table tr.done td{opacity:.45}
+.chk-have{width:58px;background:var(--bg2);color:var(--text);
   border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px;
   font-variant-numeric:tabular-nums;text-align:right}
 .chk-have:focus{outline:none;border-color:var(--accent-hover)}
-.chk-short{margin-left:8px;font-size:11px;font-variant-numeric:tabular-nums;
-  color:#ff9a9a;min-width:56px;text-align:right;flex-shrink:0}
+.chk-short{color:#ff9a9a}
 .chk-short.ok{color:#7fdc7f}
-.mat-view-body .mat-list li{display:flex;align-items:center;gap:6px}

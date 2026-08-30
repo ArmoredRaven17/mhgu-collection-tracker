@@ -901,26 +901,34 @@
     // Collapsed by default: the targets are the point of the view, and an expanded
     // summary of every material would push them below a long scroll. The collapsed
     // header still carries the headline number.
+    // Both tables share Material / Need / Have / Short so the eye can run straight down
+    // a column, and the counts are tabular-figure aligned rather than inline text.
     const summaryHtml = `<div class="mat-view-row totals-row chk-summary">
       <div class="mat-view-head"><span class="list-name">Everything you still need</span>
         <span class="list-rar">${fmtNum(shortTotal)} outstanding</span><span class="totals-chev">▾</span></div>
-      <div class="mat-view-body"><ul class="mat-list">${summary.map(m => `<li>
-        <span class="mat-q">${fmtNum(m.need)}×</span> ${escapeHtml(m.n)}
-        <input type="number" class="chk-have" min="0" inputmode="numeric" value="${m.have || ""}"
-               placeholder="0" data-mat="${escapeHtml(m.n)}" title="How many you hold">
-        <span class="chk-short${m.short ? "" : " ok"}">${m.short ? "need " + fmtNum(m.short) : "✓"}</span>
-      </li>`).join("")}</ul></div></div>`;
+      <div class="mat-view-body"><table class="chk-table">
+        <thead><tr><th>Material</th><th class="num">Need</th><th class="num">Have</th><th class="num">Short</th></tr></thead>
+        <tbody>${summary.map(m => `<tr${m.short ? "" : ' class="done"'}>
+          <td>${escapeHtml(m.n)}</td>
+          <td class="num">${fmtNum(m.need)}</td>
+          <td class="num"><input type="number" class="chk-have" min="0" inputmode="numeric"
+              value="${m.have || ""}" placeholder="0" data-mat="${escapeHtml(m.n)}" title="How many you hold"></td>
+          <td class="num chk-short${m.short ? "" : " ok"}">${m.short ? fmtNum(m.short) : "✓"}</td>
+        </tr>`).join("")}</tbody></table></div></div>`;
 
     const rowHtml = r => {
       const it = normalize(r.t.c, r.t.entry);
       const body = r.built
         ? '<div class="detail-note">Already built.</div>'
         : (r.lines.length
-            ? `<ul class="mat-list">${r.lines.map(l => `<li>
-                 <span class="mat-q">${fmtNum(l.need)}×</span> ${escapeHtml(l.n)}
-                 <span class="chk-short${l.covered >= l.need ? " ok" : ""}">${
-                   l.covered >= l.need ? "✓" : fmtNum(l.covered) + "/" + fmtNum(l.need)}</span>
-               </li>`).join("")}</ul>`
+            ? `<table class="chk-table">
+                <thead><tr><th>Material</th><th class="num">Need</th><th class="num">Have</th><th class="num">Short</th></tr></thead>
+                <tbody>${r.lines.map(l => { const short = Math.max(0, l.need - l.covered); return `<tr${short ? "" : ' class="done"'}>
+                  <td>${escapeHtml(l.n)}</td>
+                  <td class="num">${fmtNum(l.need)}</td>
+                  <td class="num">${fmtNum(l.covered)}</td>
+                  <td class="num chk-short${short ? "" : " ok"}">${short ? fmtNum(short) : "✓"}</td>
+                </tr>`; }).join("")}</tbody></table>`
             : '<div class="detail-note">Nothing outstanding.</div>')
         + (r.notes.length ? `<div class="mat-step">${r.notes.map(escapeHtml).join(" · ")}</div>` : "");
       const badge = r.built ? '<span class="mat-complete">Already built</span>'
