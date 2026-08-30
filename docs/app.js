@@ -10,7 +10,7 @@
   // which fails silently, as wrong numbers rather than an error.
   const DATA_VERSION = "2";
   const SAVE_APP = "mhgu-collection-tracker";
-  const SAVE_VERSION = 2;   // v2 adds per-item upgrade levels
+  const SAVE_VERSION = 3;   // v2 adds per-item upgrade levels; v3 adds the checklist
   const AUTOSAVE_KEY = "mhgu-tracker-autosave";
   const LOCAL_ENABLED_KEY = "mhgu-tracker-local";   // "0" opts out of browser storage
   const SETTINGS_KEY = "mhgu-tracker-settings";
@@ -177,7 +177,17 @@
   // Equipment Box's `box` section. serializeSave() builds a fresh object, so
   // without carrying these forward a save here would silently delete another
   // app's half of a shared file.
-  const OWN_KEYS = new Set(["app", "version", "savedAt", "showDummy", "settings", "owned", "levels"]);
+  const OWN_KEYS = new Set(["app", "version", "savedAt", "showDummy", "settings", "owned", "levels", "checklist"]);
+  // Checklist: pieces the user intends to build, and how much of each material they
+  // already hold. `targets` mirrors `owned`'s shape exactly; the value is the level to
+  // build to, where 0 means "max" (storing it now means a level picker later needs no
+  // save migration). `haveMats` is keyed by material NAME, not index — indices are
+  // per-file and assigned in build order, so any data rebuild would reshuffle them and
+  // silently corrupt a saved inventory.
+  const targets = new Map();
+  for (const c of CATS) targets.set(catId(c), new Map());
+  const unknownTargets = { w: {}, a: {}, p: {} };
+  const haveMats = new Map();   // material name -> count held
   let carriedKeys = {};
   let dirty = false;
   let fileHandle = null;
@@ -193,11 +203,11 @@
   // a reload, and written into the save file so it travels with a collection.
   // localSaveEnabled is deliberately NOT here — "save in this browser" is a
   // property of this device, not of the collection.
-  const SETTING_KEYS = ["clickLevel", "ctrlRemove", "altMax", "dummy"];
+  const SETTING_KEYS = ["clickLevel", "ctrlRemove", "altMax", "dummy", "shiftTarget"];
   // boxSync is deliberately outside SETTING_KEYS: like localSaveEnabled it
   // describes this browser rather than the collection, so opening someone
   // else's save must not switch it for you.
-  const settings = { clickLevel: true, ctrlRemove: true, altMax: true, dummy: false, boxSync: true };
+  const settings = { clickLevel: true, ctrlRemove: true, altMax: true, dummy: false, shiftTarget: true, boxSync: true };
   const toggleSyncs = [];   // re-sync every switch after a save is loaded
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")); } catch (e) {}
   const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} };
@@ -330,9 +340,31 @@
   }
   // Another tab changed the shared document: pick up its half so a save from
   // here carries the current version rather than the one loaded at startup.
+  // Another tracker tab wrote the shared document. Ownership merges additively
+  // (mergeOwnedFromStorage), but that is WRONG for material counts: spending materials
+  // legitimately lowers a number, so a max-merge would resurrect stock you have used.
+  // Adopt the stored checklist wholesale instead — unless this tab has unsaved edits of
+  // its own, in which case last-writer-wins and this tab is the writer.
+  function adoptChecklistFromStorage() {
+    if (dirty) return;
+    let cl;
+    try { cl = JSON.parse(localStorage.getItem(AUTOSAVE_KEY) || "{}").checklist; } catch (e) { return; }
+    if (!cl || typeof cl !== "object") return;
+    const before = JSON.stringify(serializeSave().checklist);
+    if (before === JSON.stringify(cl)) return;
+    for (const c of CATS) targets.get(catId(c)).clear();
+    haveMats.clear();
+    unknownTargets.w = {}; unknownTargets.a = {}; unknownTargets.p = {};
+    applyChecklist(cl);
+    clearDirty();
+    if (viewMode === "checklist" || viewMode === "grid" || viewMode === "list") renderGrid();
+    toast("Checklist updated from another tab.");
+  }
+
   window.addEventListener("storage", e => {
     if (e.key !== AUTOSAVE_KEY) return;
     refreshCarriedFromStorage();
+    adoptChecklistFromStorage();
     // A collection can span save files — several characters, or a record kept
     // across a restart — so it is legitimately wider than any one equipment
     // box. Anyone tracking that way can refuse the box's word for it.
@@ -388,6 +420,51 @@
     }
     if (selectedId === id && current === c) refreshDetailOwned(c, id);
   }
+  // ── Checklist targets ──────────────────────────────────────────────────
+  const targetsMapOf = c => targets.get(catId(c));
+  function isTargeted(c, id) { return targetsMapOf(c).has(id); }
+  function targetLevelOf(c, id) { return targetsMapOf(c).get(id) || 0; }   // 0 = max
+  const effectiveTargetLevel = (c, id) => targetLevelOf(c, id) || maxLevelOf(c, id);
+  function toggleTarget(c, id) {
+    const m = targetsMapOf(c);
+    if (m.has(id)) m.delete(id); else m.set(id, 0);
+    afterTargetChange(c, id);
+  }
+  // How far up a tree the user is already covered, counting both what they own and what
+  // they have targeted. Used to stop a build walk at an ancestor so a lineage shared by
+  // two targets is never charged twice.
+  const coveredLevelOf = (c, id) => Math.max(
+    isOwned(c, id) ? Math.max(1, ownedLevel(c, id)) : 0,
+    isTargeted(c, id) ? effectiveTargetLevel(c, id) : 0);
+  function targetCount() {
+    let n = 0;
+    for (const m of targets.values()) n += m.size;
+    return n;
+  }
+  function setHaveMat(name, n) {
+    const v = Math.max(0, Math.floor(Number(n) || 0));
+    if (v) haveMats.set(name, v); else haveMats.delete(name);
+    markDirty();
+  }
+  function afterTargetChange(c, id) {
+    markDirty();
+    // A full re-render is needed when the visible set itself depends on targeting —
+    // otherwise an untargeted piece lingers in a list it no longer belongs to.
+    if (viewMode === "checklist" || viewMode === "materials" || filters.owned === "target") renderGrid();
+    else {
+      const cell = $("grid").querySelector(`[data-id="${id}"][data-cat="${catId(c)}"]`);
+      if (cell) updateCellTarget(cell, isTargeted(c, id));
+    }
+    if (selectedId === id && current === c) refreshDetailTarget(c, id);
+  }
+  function updateCellTarget(cell, on) {
+    cell.classList.toggle("targeted", on);
+    let star = cell.querySelector(".cell-target");
+    if (on) {
+      if (!star) { star = document.createElement("span"); star.className = "cell-target"; star.textContent = "★"; cell.appendChild(star); }
+    } else if (star) star.remove();
+  }
+
   function updateCellOwned(cell, on, level, max) {
     cell.classList.toggle("owned", on);
     let chk = cell.querySelector(".cell-check");
@@ -567,6 +644,7 @@
     if (it.rar >= 1 && !filters.rarity.has(it.rar)) return false;
     if (filters.owned !== "all") {
       const has = owned.get(`${it.kind}:${it.key}`).has(it.id);
+      if (filters.owned === "target") return isTargeted(it.cat, it.id);
       if (filters.owned === "owned" && !has) return false;
       if (filters.owned === "missing" && has) return false;
       if (filters.owned === "maxed") {                 // Fully Upgraded: owned at max level
@@ -606,27 +684,32 @@
     const text = level > 0 ? (maxed ? "Max" : level) : "✓";
     return { on: true, html: `<span class="cell-check${maxed ? " max" : ""}">${text}</span>` };
   }
+  const targetBadgeHtml = it => targets.get(`${it.kind}:${it.key}`).has(it.id)
+    ? { on: true, html: '<span class="cell-target">★</span>' } : { on: false, html: "" };
   function cellHtml(it) {
     const { on, html } = ownedBadgeHtml(it);
+    const tg = targetBadgeHtml(it);
     const rc = it.rar >= 1 ? ` rarity-${it.rar}` : "";
-    return `<div class="box-cell${rc}${on ? " owned" : ""}" data-id="${it.id}" data-cat="${it.kind}:${it.key}" title="${escapeHtml(it.name)}">
-      <img class="cell-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="" loading="lazy">${html}</div>`;
+    return `<div class="box-cell${rc}${on ? " owned" : ""}${tg.on ? " targeted" : ""}" data-id="${it.id}" data-cat="${it.kind}:${it.key}" title="${escapeHtml(it.name)}">
+      <img class="cell-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="" loading="lazy">${html}${tg.html}</div>`;
   }
   function listRowHtml(it) {
     const { on, html } = ownedBadgeHtml(it);
     const rc = it.rar >= 1 ? ` rarity-${it.rar}` : "";
     const rarLabel = it.rar >= 1 ? rarityLabel(it.rar) : "–";
-    return `<div class="list-row${rc}${on ? " owned" : ""}" data-id="${it.id}" data-cat="${it.kind}:${it.key}" title="${escapeHtml(it.name)}">
+    const tg = targetBadgeHtml(it);
+    return `<div class="list-row${rc}${on ? " owned" : ""}${tg.on ? " targeted" : ""}" data-id="${it.id}" data-cat="${it.kind}:${it.key}" title="${escapeHtml(it.name)}">
       <img class="list-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="" loading="lazy">
       <span class="list-name">${escapeHtml(it.name)}${genderPill(it.gender)}</span>
-      <span class="list-rar">R${rarLabel}</span>${html}</div>`;
+      <span class="list-rar">R${rarLabel}</span>${html}${tg.html}</div>`;
   }
   function renderGrid() {
     const grid = $("grid");
     grid.classList.toggle("view-list", viewMode === "list");
-    grid.classList.toggle("view-materials", viewMode === "materials" || viewMode === "totals");
-    // Totals spans every category, so it does not go through currentItems().
-    if (viewMode === "totals") { $("gridEmpty").classList.add("hidden"); renderTotalsView(); return; }
+    grid.classList.toggle("view-materials", viewMode === "materials" || viewMode === "totals" || viewMode === "checklist");
+    // Totals and Checklist span every category, so neither goes through currentItems().
+    if (viewMode === "totals") { updateViewHeader(); $("gridEmpty").classList.add("hidden"); renderTotalsView(); return; }
+    if (viewMode === "checklist") { updateViewHeader(); $("gridEmpty").classList.add("hidden"); renderChecklistView(); return; }
     let items = currentItems().filter(passesFilters);
     sortItems(items);
     if (!items.length) { grid.innerHTML = ""; $("gridEmpty").classList.remove("hidden"); return; }
@@ -663,13 +746,15 @@
   //   Armor   — creation plus upgrades. Each piece is crafted independently from raw
   //             materials, so both are real, additive costs.
   //   Palico  — creation only; Palico gear has no upgrade levels.
-  const totalsPieceCost = (c, it, data) => {
+  // `toLevel` lets the checklist ask for a sub-max target; Totals omits it and gets max.
+  const totalsPieceCost = (c, it, data, toLevel) => {
     const sum = new Map();
     if (!data) return sum;
     const add = pairs => { for (const [mi, q] of pairs || []) {
       const n = data.mats[mi]; if (n) sum.set(n, (sum.get(n) || 0) + q); } };
     const addMap = m => { for (const [n, q] of m) sum.set(n, (sum.get(n) || 0) + q); };
-    const has = isOwned(c, it.id), max = maxLevelOf(c, it.id);
+    const has = isOwned(c, it.id);
+    const max = toLevel || maxLevelOf(c, it.id);
     const from = has ? Math.max(1, ownedLevel(c, it.id)) : 1;
 
     if (c.kind === "p") {                       // creation only, and only if unbuilt
@@ -745,6 +830,119 @@
           body.innerHTML = typeof v === "string" ? `<div class="detail-note">${v}</div>` : matNameListHtml(v);
         }
         rowEl.classList.toggle("open");
+      });
+    });
+  }
+
+  // ── Checklist view ─────────────────────────────────────────────────────
+  // Spans every category, like Totals. Grouped by target, each listing what it still
+  // costs, with one global inventory count per material in the summary.
+  //
+  // Allocation rule: the summary is authoritative. `have` is a single global number, so
+  // it is NOT subtracted from each target independently — 12 Iron Ore does not satisfy
+  // 12 in target A *and* 12 in target B. Per-target lines show a deterministic
+  // first-come allocation down the list, so the covered amounts never sum past `have`.
+  let checklistViewToken = 0;
+  function targetedItems() {
+    const out = [];
+    for (const c of CATS) {
+      const m = targets.get(catId(c));
+      if (!m.size) continue;
+      for (const e of c.entries) if (m.has(e[0])) out.push({ c, id: e[0], entry: e });
+    }
+    return out;
+  }
+  async function renderChecklistView() {
+    const token = ++checklistViewToken;
+    const grid = $("grid");
+    const list = targetedItems();
+    if (!list.length) {
+      grid.innerHTML = '<div class="mat-view-note">Nothing on your checklist yet. '
+        + 'Open any weapon, armor piece or Palico gear and use <b>Add to checklist</b> '
+        + 'to start a build list.</div>';
+      return;
+    }
+    grid.innerHTML = '<div class="detail-note" style="padding:20px">Loading materials…</div>';
+    const files = [...new Set(list.map(t => t.c.statsFile))];
+    const dataByFile = {};
+    await Promise.all(files.map(f =>
+      loadMaterials(f).then(d => { dataByFile[f] = d; }).catch(() => { dataByFile[f] = null; })));
+    if (token !== checklistViewToken) return;   // a newer render superseded this one
+
+    // Cost every target once, then allocate the global inventory down the list.
+    const rows = [], totalNeed = new Map();
+    const remaining = new Map(haveMats);
+    for (const t of list) {
+      const { map, notes } = targetCost(t.c, t.id, dataByFile[t.c.statsFile]);
+      for (const [n, q] of map) totalNeed.set(n, (totalNeed.get(n) || 0) + q);
+      const lines = [...map].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([n, need]) => {
+          const avail = remaining.get(n) || 0;
+          const covered = Math.min(avail, need);
+          remaining.set(n, avail - covered);
+          return { n, need, covered };
+        });
+      // "Built" compares what you OWN against the target level. It must not use
+      // coveredLevelOf, which counts being targeted as coverage — every target would
+      // then report itself built. Level-less gear (Palico) is built once owned.
+      const ownedLv = isOwned(t.c, t.id) ? Math.max(1, ownedLevel(t.c, t.id)) : 0;
+      const built = isOwned(t.c, t.id) && ownedLv >= effectiveTargetLevel(t.c, t.id);
+      rows.push({ t, lines, notes, done: built || (lines.length > 0 && lines.every(l => l.covered >= l.need)), built,
+                  units: lines.reduce((a, l) => a + l.need, 0) });
+    }
+
+    // Summary: every material any target needs, with the true shortfall.
+    const summary = [...totalNeed].sort((a, b) => a[0].localeCompare(b[0])).map(([n, need]) => {
+      const have = haveMats.get(n) || 0;
+      return { n, need, have, short: Math.max(0, need - have) };
+    });
+    const shortTotal = summary.reduce((a, m) => a + m.short, 0);
+
+    // Collapsed by default: the targets are the point of the view, and an expanded
+    // summary of every material would push them below a long scroll. The collapsed
+    // header still carries the headline number.
+    const summaryHtml = `<div class="mat-view-row totals-row chk-summary">
+      <div class="mat-view-head"><span class="list-name">Everything you still need</span>
+        <span class="list-rar">${fmtNum(shortTotal)} outstanding</span><span class="totals-chev">▾</span></div>
+      <div class="mat-view-body"><ul class="mat-list">${summary.map(m => `<li>
+        <span class="mat-q">${fmtNum(m.need)}×</span> ${escapeHtml(m.n)}
+        <input type="number" class="chk-have" min="0" inputmode="numeric" value="${m.have || ""}"
+               placeholder="0" data-mat="${escapeHtml(m.n)}" title="How many you hold">
+        <span class="chk-short${m.short ? "" : " ok"}">${m.short ? "need " + fmtNum(m.short) : "✓"}</span>
+      </li>`).join("")}</ul></div></div>`;
+
+    const rowHtml = r => {
+      const it = normalize(r.t.c, r.t.entry);
+      const body = r.built
+        ? '<div class="detail-note">Already built.</div>'
+        : (r.lines.length
+            ? `<ul class="mat-list">${r.lines.map(l => `<li>
+                 <span class="mat-q">${fmtNum(l.need)}×</span> ${escapeHtml(l.n)}
+                 <span class="chk-short${l.covered >= l.need ? " ok" : ""}">${
+                   l.covered >= l.need ? "✓" : fmtNum(l.covered) + "/" + fmtNum(l.need)}</span>
+               </li>`).join("")}</ul>`
+            : '<div class="detail-note">Nothing outstanding.</div>')
+        + (r.notes.length ? `<div class="mat-step">${r.notes.map(escapeHtml).join(" · ")}</div>` : "");
+      const badge = r.built ? '<span class="mat-complete">Already built</span>'
+        : r.done ? '<span class="mat-complete">Ready to build</span>'
+        : `<span class="list-rar">${fmtNum(r.units)} items</span>`;
+      return `<div class="mat-view-row totals-row${r.done ? " complete" : ""}" data-id="${r.t.id}" data-cat="${catId(r.t.c)}">
+        <div class="mat-view-head"><img class="list-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="">
+          <span class="list-name">${escapeHtml(it.name)}</span>${badge}<span class="totals-chev">▾</span></div>
+        <div class="mat-view-body">${body}</div></div>`;
+    };
+
+    const note = `<div class="mat-view-note">Materials for the ${list.length} piece${list.length === 1 ? "" : "s"}
+      on your checklist. Enter what you hold in the summary — counts are global, so a material
+      shared by several targets is only counted once. Targets below are covered top to bottom.</div>`;
+    grid.innerHTML = note + summaryHtml + rows.map(rowHtml).join("");
+    grid.querySelectorAll(".totals-row").forEach(el => {
+      el.querySelector(".mat-view-head").addEventListener("click", ev => {
+        el.classList.toggle("open");
+        // Plain click = expand/collapse only. Without this it also reaches the grid
+        // handler, which treats a second click on the already-open piece as "level up".
+        // Modifier clicks still pass through so ctrl/alt/shift keep their usual meaning.
+        if (!ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) ev.stopPropagation();
       });
     });
   }
@@ -927,11 +1125,24 @@
   //   ctrl/meta = toggle owned (quick on/off, also the un-own escape)
   //   first click on a cell = inspect (open detail, no change)
   //   clicking the already-open weapon = cycle ownership/level up to max
+  // Inventory counts. Delegated, and on `change` rather than `input` so a half-typed
+  // number never lands in the model and the list is not recomputed on every keystroke.
+  $("grid").addEventListener("change", ev => {
+    const inp = ev.target.closest(".chk-have");
+    if (!inp) return;
+    setHaveMat(inp.dataset.mat, inp.value);
+    if (viewMode === "checklist") renderChecklistView();
+  });
   $("grid").addEventListener("click", ev => {
+    // Checklist rows carry data-id/data-cat and reuse .mat-view-row, so without this a
+    // click on an inventory input would bubble up and open (or own) the piece.
+    if (ev.target.closest("input, button, select, label")) return;
     const cell = ev.target.closest(".box-cell, .list-row, .mat-view-row");
     if (!cell) return;
     const c = catByIdMap.get(cell.dataset.cat);
     const id = Number(cell.dataset.id);
+    if (!c || !Number.isInteger(id)) return;
+    if (ev.shiftKey && settings.shiftTarget) { toggleTarget(c, id); return; }
     if (ev.altKey && settings.altMax) { setMaxOwned(c, id); return; }
     if ((ev.ctrlKey || ev.metaKey) && settings.ctrlRemove) { toggleOwned(c, id); return; }
     const alreadyOpen = selectedId === id && current === c;
@@ -957,6 +1168,11 @@
     return lv > 0 ? `✓ Owned — LV ${lv}` : "✓ Owned";
   }
   // Sync the owned button + level-row highlight for the currently-open item.
+  const targetBtnLabel = (c, id) => isTargeted(c, id) ? "★ On checklist" : "Add to checklist";
+  function refreshDetailTarget(c, id) {
+    const btn = $("detailTargetBtn");
+    if (btn) { btn.classList.toggle("is-target", isTargeted(c, id)); btn.textContent = targetBtnLabel(c, id); }
+  }
   function refreshDetailOwned(c, id) {
     const btn = $("detailOwnedBtn");
     if (btn) { btn.classList.toggle("is-owned", isOwned(c, id)); btn.textContent = ownedBtnLabel(c, id); }
@@ -1013,9 +1229,11 @@
         <div><div class="detail-title">${title}</div><div class="detail-sub">${sub}</div></div>
       </div>
       <button id="detailOwnedBtn" class="detail-owned-btn ${on ? "is-owned" : ""}">${ownedBtnLabel(c, id)}</button>
+      <button id="detailTargetBtn" class="detail-target-btn ${isTargeted(c, id) ? "is-target" : ""}">${targetBtnLabel(c, id)}</button>
       <div id="detailStats"><div class="detail-note">Loading stats…</div></div>
       <div id="detailMaterials"></div>`;
     $("detailOwnedBtn").addEventListener("click", () => toggleOwned(c, id));
+    $("detailTargetBtn").addEventListener("click", () => toggleTarget(c, id));
     openMaterials = null;
 
     try {
@@ -1176,19 +1394,70 @@
     return merge;
   }
   // Full from-scratch total across the whole upgrade chain (predecessors + target).
-  function chainAggregate(data, id, max) {
-    const merge = new Map();
-    for (const s of buildChain(data, id, max))
-      for (const [n, q] of sumTreeMats(data, s.treeId, s.hi)) merge.set(n, (merge.get(n) || 0) + q);
-    return merge;
+  // ── Build cost for a checklist target ──────────────────────────────────
+  // WARNING: never read level 1 of `byId` for a weapon. build-data.mjs merges EVERY row
+  // of the DB's components table for the level-1 item — both Create and Improve types,
+  // across all recipe key groups — so level 1 is the union of every path into that
+  // weapon, not any one of them. Measured: of 1563 trees with a level-1 entry, only 8
+  // match create.d and 545 match create.f; 1010 (65%) match neither. `create` is the
+  // reliable source, and it is a complete lineage graph: all 798 trees with a parent
+  // have a matching create.f, and every parentless tree has a create.d.
+  const addPairs = (map, pairs, mats) => {
+    for (const [mi, q] of pairs || []) {
+      const n = mats[mi];
+      if (n) map.set(n, (map.get(n) || 0) + q);
+    }
+  };
+  const addMap = (map, other) => { for (const [n, q] of other) map.set(n, (map.get(n) || 0) + q); };
+
+  // Full from-scratch cost of getting tree `treeId` to level `hi`, stopping at any
+  // ancestor already owned or itself targeted. Because every target stops at a covered
+  // ancestor, and a targeted ancestor contributes from where its own coverage ends, the
+  // union of all target costs partitions the lineage into non-overlapping level ranges
+  // — no double counting and no gaps, whatever combination is on the checklist.
+  function weaponBuildCost(data, c, treeId, hi, seen, isRoot) {
+    const map = new Map(), notes = [];
+    if (!data || seen.has(treeId)) return { map, notes };
+    seen.add(treeId);
+    // The piece being costed must NOT count itself as covered just because it is on the
+    // checklist — that would make every target report zero. Only what you already OWN
+    // reduces the root's cost; being targeted only stops the walk at an ANCESTOR.
+    const covered = isRoot
+      ? (isOwned(c, treeId) ? Math.max(1, ownedLevel(c, treeId)) : 0)
+      : coveredLevelOf(c, treeId);
+    if (covered >= hi) return { map, notes };
+    if (covered >= 1) {                       // already have this weapon; just upgrade it
+      addMap(map, sumTreeMats(data, treeId, hi, covered + 1));
+      return { map, notes };
+    }
+    const cr = (data.create || {})[String(treeId)];
+    if (!cr) {
+      notes.push("No create recipe (event / relic weapon).");
+    } else if (cr.f && coveredLevelOf(c, cr.f[0]) >= cr.f[1]) {
+      addPairs(map, cr.f[2], data.mats);      // you already have the source weapon
+      notes.push(`upgraded from ${weaponTreeName(c, cr.f[0])} LV ${cr.f[1]}`);
+    } else if (cr.d) {
+      addPairs(map, cr.d, data.mats);         // self-contained; no lineage to walk
+    } else if (cr.f) {
+      addPairs(map, cr.f[2], data.mats);
+      const up = weaponBuildCost(data, c, cr.f[0], cr.f[1], seen, false);
+      addMap(map, up.map);
+      notes.push(`via ${weaponTreeName(c, cr.f[0])} LV ${cr.f[1]}`);
+      notes.push(...up.notes);
+    }
+    addMap(map, sumTreeMats(data, treeId, hi, 2));   // never lo = 1, see the warning above
+    return { map, notes };
   }
-  // Walk parent lineage: [{treeId, hi}] from root → target (each predecessor only to its branch level).
-  function buildChain(data, targetId, targetMax) {
-    const segs = [{ treeId: targetId, hi: targetMax }];
-    const seen = new Set([targetId]);
-    let par = (data.parents || {})[targetId];
-    while (par && !seen.has(par[0])) { segs.push({ treeId: par[0], hi: par[1] }); seen.add(par[0]); par = (data.parents || {})[par[0]]; }
-    return segs.reverse();
+
+  // What a targeted piece still costs. Weapons walk their lineage; armor and Palico are
+  // crafted independently, so totalsPieceCost already IS their full build cost.
+  function targetCost(c, id, data) {
+    if (!data) return { map: new Map(), notes: [] };
+    if (c.kind === "w")
+      return weaponBuildCost(data, c, id, effectiveTargetLevel(c, id) || maxLevelOf(c, id) || 1, new Set(), true);
+    const entry = c.entries.find(e => e[0] === id);
+    if (!entry) return { map: new Map(), notes: [] };
+    return { map: totalsPieceCost(c, normalize(c, entry), data, effectiveTargetLevel(c, id)), notes: [] };
   }
   const weaponTreeName = (c, treeId) => { const e = C.weapons[c.key].entries.find(x => x[0] === treeId); return e ? e[1] : "?"; };
 
@@ -1329,6 +1598,20 @@
       Object.assign(lv, (unknownLevels[c.kind] || {})[c.key] || {});
       if (Object.keys(lv).length) out.levels[c.kind][c.key] = lv;
     }
+    // Checklist. Same shape as `levels` (id -> level), plus a flat name-keyed inventory.
+    // Unrecognised target ids are re-exported so a save round-tripped through an older
+    // data build does not lose them, exactly as unknownOwned does for ownership.
+    const tg = { w: {}, a: {}, p: {} };
+    for (const c of CATS) {
+      const m = targets.get(catId(c));
+      const o = {};
+      m.forEach((lvl, id) => { o[id] = lvl; });
+      Object.assign(o, (unknownTargets[c.kind] || {})[c.key] || {});
+      if (Object.keys(o).length) tg[c.kind][c.key] = o;
+    }
+    const mats = {};
+    haveMats.forEach((n, name) => { if (n > 0) mats[name] = n; });
+    out.checklist = { version: 1, targets: tg, mats };
     return out;
   }
   function validateSave(obj) {
@@ -1344,15 +1627,52 @@
         if (!Array.isArray(arr) || arr.some(x => !Number.isInteger(x))) return "Collection data is malformed.";
     }
     if (obj.levels != null && typeof obj.levels !== "object") return "Collection data is malformed.";
+    // A malformed checklist is never fatal: it degrades to empty rather than rejecting
+    // the file, because losing a whole collection over a bad shopping list is absurd.
     return null;
   }
   // Armor used to fold each female variant into its male counterpart, remapping
   // the id on load. Both halves are listed separately now — a collection can
   // span a male and a female save — so an id always means itself.
+  // Checklist (v3+). Anything malformed is skipped rather than throwing — losing a
+  // whole collection over a bad shopping list would be absurd. Assumes the caller has
+  // already cleared targets/haveMats/unknownTargets.
+  function applyChecklist(cl) {
+    if (!cl || typeof cl !== "object") return;
+    const tg = cl.targets;
+    if (tg && typeof tg === "object") {
+      for (const kind of ["w", "a", "p"]) {
+        const bucket = tg[kind]; if (!bucket || typeof bucket !== "object") continue;
+        for (const [key, map] of Object.entries(bucket)) {
+          if (!map || typeof map !== "object") continue;
+          const cid = `${kind}:${key}`;
+          const valid = validIds.get(cid);
+          const m = targets.get(cid);
+          if (!m) continue;
+          for (const [rawId, rawLv] of Object.entries(map)) {
+            const id = Number(rawId);
+            const lv = Number(rawLv) || 0;
+            if (!Number.isInteger(id)) continue;
+            if (valid && valid.has(id)) m.set(id, lv > 0 ? lv : 0);
+            else ((unknownTargets[kind][key] ||= {}))[id] = lv;
+          }
+        }
+      }
+    }
+    if (cl.mats && typeof cl.mats === "object")
+      for (const [name, n] of Object.entries(cl.mats)) {
+        const v = Math.max(0, Math.floor(Number(n) || 0));
+        if (v) haveMats.set(name, v);
+      }
+  }
+
   function applySave(obj) {
     for (const c of CATS) owned.get(catId(c)).clear();
+    for (const c of CATS) targets.get(catId(c)).clear();
+    haveMats.clear();
     unknownOwned.w = {}; unknownOwned.a = {}; unknownOwned.p = {};
     unknownLevels.w = {}; unknownLevels.a = {}; unknownLevels.p = {};
+    unknownTargets.w = {}; unknownTargets.a = {}; unknownTargets.p = {};
     carriedKeys = {};
     for (const k of Object.keys(obj)) if (!OWN_KEYS.has(k)) carriedKeys[k] = obj[k];
     let unknownCount = 0;
@@ -1386,6 +1706,7 @@
         }
       }
     }
+    applyChecklist(obj.checklist);
     if (unknownCount) toast(`${unknownCount} unrecognized id(s) preserved for re-export.`);
     // Settings travel with the save. showDummy is read first so older files still
     // work; obj.settings then wins where both are present.
@@ -1548,13 +1869,22 @@
   $("defSelect").addEventListener("change", function () { filters.def = this.value; renderGrid(); });
   document.querySelectorAll('input[name="armorClassFilter"]').forEach(r =>
     r.addEventListener("change", function () { if (this.checked) { filters.armorClass = this.value; renderGrid(); } }));
+  // Totals and Checklist aren't scoped to a category, so the header shouldn't claim one.
+  // Called from renderGrid as well as setView: on a fresh load the view is restored from
+  // localStorage after selectCategory has already written the category's name there.
+  function updateViewHeader() {
+    if (viewMode === "totals") { $("catTitle").textContent = "All categories"; $("catCount").textContent = ""; }
+    else if (viewMode === "checklist") {
+      const n = targetCount();
+      $("catTitle").textContent = "Checklist";
+      $("catCount").textContent = `${n} target${n === 1 ? "" : "s"}`;
+    } else updateSearchTitle();
+  }
   function setView(v) {
-    viewMode = (v === "list" || v === "materials" || v === "totals") ? v : "grid";
+    viewMode = (v === "list" || v === "materials" || v === "totals" || v === "checklist") ? v : "grid";
     try { localStorage.setItem("mhgu-tracker-view", viewMode); } catch (e) {}
     $("viewToggle").querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.view === viewMode));
-    // Totals isn't scoped to a category, so the header shouldn't claim one.
-    if (viewMode === "totals") { $("catTitle").textContent = "All categories"; $("catCount").textContent = ""; }
-    else updateSearchTitle();
+    updateViewHeader();
     renderGrid();
   }
   $("viewToggle").querySelectorAll("button").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
@@ -1689,6 +2019,7 @@
   bindSetting("clickLevelToggle", "clickLevel");
   bindSetting("ctrlRemoveToggle", "ctrlRemove");
   bindSetting("altMaxToggle", "altMax");
+  bindSetting("shiftTargetToggle", "shiftTarget");
   bindToggle("localSaveToggle", () => localSaveEnabled, v => {
     localSaveEnabled = v;
     try {
@@ -1703,7 +2034,8 @@
     // so the next autosave (or the beforeunload flush) writes it straight back. Reset
     // the collection too, which is what "clear" is asked for in the first place.
     if (!confirm("Clear your collection from this browser?\n\n"
-      + "This erases the saved copy and resets what's currently tracked. "
+      + "This erases the saved copy and resets what's currently tracked, including your "
+      + "checklist targets and every material count you've entered. "
       + "Collections you've saved to a file are not affected.")) return;
     clearTimeout(autosaveTimer);
     dropOwnSectionFromStorage();

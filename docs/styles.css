@@ -394,3 +394,24 @@ body{
 #classFilters{display:flex;flex-direction:column;gap:10px;margin-bottom:10px}
 #classFilters:empty{margin-bottom:0}
 #classFilters .filter-group{margin-bottom:0}
+
+/* ── Checklist ─────────────────────────────────────────────────────────── */
+/* Target star sits top-LEFT so it never collides with .cell-check top-right. */
+.cell-target{position:absolute;top:2px;left:3px;font-size:10px;color:#ffd257;
+  text-shadow:0 0 2px #000,0 0 3px #000;pointer-events:none}
+.list-row .cell-target{position:static;font-size:12px;text-shadow:none;flex-shrink:0}
+.box-cell.targeted,.list-row.targeted{box-shadow:inset 0 0 0 1px #ffd25766}
+.detail-target-btn{width:100%;margin-top:6px;padding:7px 10px;border-radius:7px;cursor:pointer;
+  background:var(--bg2);color:var(--text);border:1px solid var(--line);font-size:13px}
+.detail-target-btn:hover{border-color:var(--accent-hover)}
+.detail-target-btn.is-target{background:#ffd2571f;border-color:#ffd25788;color:#ffd257}
+.chk-summary .mat-view-head .list-name{font-weight:700}
+/* The inventory input is the only editable surface — one per material, in the summary. */
+.chk-have{width:62px;margin-left:auto;background:var(--bg2);color:var(--text);
+  border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px;
+  font-variant-numeric:tabular-nums;text-align:right}
+.chk-have:focus{outline:none;border-color:var(--accent-hover)}
+.chk-short{margin-left:8px;font-size:11px;font-variant-numeric:tabular-nums;
+  color:#ff9a9a;min-width:56px;text-align:right;flex-shrink:0}
+.chk-short.ok{color:#7fdc7f}
+.mat-view-body .mat-list li{display:flex;align-items:center;gap:6px}

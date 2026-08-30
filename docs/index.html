@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MHGU Collection Tracker</title>
 <link rel="icon" type="image/png" href="assets/icons/icon_armor_body_r1.png">
-<link rel="stylesheet" href="styles.css?v=33">
+<link rel="stylesheet" href="styles.css?v=34">
 </head>
 <body>
 <div id="app">
@@ -40,6 +40,7 @@
             <label class="chk"><input type="radio" name="ownedFilter" value="missing"><span>Missing</span></label>
             <label class="chk"><input type="radio" name="ownedFilter" value="maxed"><span>Fully Upgraded</span></label>
             <label class="chk"><input type="radio" name="ownedFilter" value="partial"><span>Exclude Fully Upgraded</span></label>
+            <label class="chk"><input type="radio" name="ownedFilter" value="target"><span>On checklist</span></label>
           </div>
           <div class="filter-group">
             <div class="filter-label">Sort</div>
@@ -114,6 +115,7 @@
                 <button type="button" data-view="list" title="List view" aria-label="List view">☰</button>
                 <button type="button" data-view="materials" title="Materials view" aria-label="Materials view">🧾</button>
                 <button type="button" data-view="totals" title="Totals view — every category's remaining upgrade materials" aria-label="Totals view">&Sigma;</button>
+                <button type="button" data-view="checklist" title="Checklist — materials for the pieces you're building" aria-label="Checklist view">&#9733;</button>
               </div>
             </div>
             <div class="progress-bar"><div id="catProgressFill" class="progress-fill"></div></div>
@@ -251,6 +253,11 @@
           <span class="set-hint">Marks a piece owned at its max level in one click.</span></div>
         <button type="button" class="toggle" id="altMaxToggle" role="switch" aria-checked="true" aria-label="Alt click to fully upgrade"></button>
       </div>
+      <div class="set-row">
+        <div class="set-label">Shift + Click to add to checklist
+          <span class="set-hint">Marks a piece as something you plan to build.</span></div>
+        <button type="button" class="toggle" id="shiftTargetToggle" role="switch" aria-checked="true" aria-label="Shift click to add to checklist"></button>
+      </div>
     </div>
 
     <div class="set-section">
@@ -285,6 +292,6 @@
 
 <script src="data/catalog.js?v=12"></script>
 <script src="data/armor_levels.js?v=2"></script>
-<script src="app.js?v=81"></script>
+<script src="app.js?v=89"></script>
 </body>
 </html>
