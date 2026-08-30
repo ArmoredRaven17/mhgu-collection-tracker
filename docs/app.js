@@ -1010,6 +1010,9 @@
     grid.innerHTML = note + summaryHtml + rows.map(rowHtml).join("");
     grid.querySelectorAll(".totals-row").forEach(el => {
       if (openKeys.has(chkRowKey(el))) el.classList.add("open");
+      // The detail panel outlives the redraw, so the row it is showing stays marked.
+      if (current && el.dataset.cat === catId(current) && Number(el.dataset.id) === selectedId)
+        el.classList.add("selected");
     });
     if (scroller) scroller.scrollTop = scrollTop;
     if (focusMat) {
@@ -1020,10 +1023,20 @@
       el.querySelector(".mat-view-head").addEventListener("click", ev => {
         if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey) return;   // let the gesture through
         el.classList.toggle("open");
-        // Plain click = expand/collapse only. Without this it also reaches the grid
+        // Opening a row also shows that piece in the detail panel, so its stats, its
+        // recipe and the checklist button are one click away from the material list.
+        // Done here rather than by letting the click fall through to the grid handler,
+        // which would read a second click on the open piece as "level up".
+        const c = catByIdMap.get(el.dataset.cat), id = Number(el.dataset.id);
+        if (c && Number.isInteger(id)) {
+          grid.querySelectorAll(".mat-view-row.selected").forEach(x => x.classList.remove("selected"));
+          el.classList.add("selected");
+          openDetail(c, id);
+        }
+        // Plain click = expand/collapse and select. Without this it also reaches the grid
         // handler, which treats a second click on the already-open piece as "level up".
         // Modifier clicks still pass through so ctrl/alt/shift keep their usual meaning.
-        if (!ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) ev.stopPropagation();
+        ev.stopPropagation();
       });
     });
   }
