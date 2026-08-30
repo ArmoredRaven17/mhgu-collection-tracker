@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MHGU Collection Tracker</title>
 <link rel="icon" type="image/png" href="assets/icons/icon_armor_body_r1.png">
-<link rel="stylesheet" href="styles.css?v=35">
+<link rel="stylesheet" href="styles.css?v=36">
 </head>
 <body>
 <div id="app">
@@ -258,6 +258,11 @@
           <span class="set-hint">Marks a piece as something you plan to build.</span></div>
         <button type="button" class="toggle" id="shiftTargetToggle" role="switch" aria-checked="true" aria-label="Shift click to add to checklist"></button>
       </div>
+      <div class="set-row">
+        <div class="set-label">Spend materials when you build
+          <span class="set-hint">Levelling up a checklist piece takes what it cost out of the counts you have recorded.</span></div>
+        <button type="button" class="toggle" id="spendMatsToggle" role="switch" aria-checked="true" aria-label="Spend materials when you build"></button>
+      </div>
     </div>
 
     <div class="set-section">
@@ -292,6 +297,6 @@
 
 <script src="data/catalog.js?v=12"></script>
 <script src="data/armor_levels.js?v=2"></script>
-<script src="app.js?v=91"></script>
+<script src="app.js?v=92"></script>
 </body>
 </html>

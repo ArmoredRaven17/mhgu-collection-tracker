@@ -203,11 +203,12 @@
   // a reload, and written into the save file so it travels with a collection.
   // localSaveEnabled is deliberately NOT here — "save in this browser" is a
   // property of this device, not of the collection.
-  const SETTING_KEYS = ["clickLevel", "ctrlRemove", "altMax", "dummy", "shiftTarget"];
+  const SETTING_KEYS = ["clickLevel", "ctrlRemove", "altMax", "dummy", "shiftTarget", "spendMats"];
   // boxSync is deliberately outside SETTING_KEYS: like localSaveEnabled it
   // describes this browser rather than the collection, so opening someone
   // else's save must not switch it for you.
-  const settings = { clickLevel: true, ctrlRemove: true, altMax: true, dummy: false, shiftTarget: true, boxSync: true };
+  const settings = { clickLevel: true, ctrlRemove: true, altMax: true, dummy: false, shiftTarget: true,
+                     spendMats: true, boxSync: true };
   const toggleSyncs = [];   // re-sync every switch after a save is loaded
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")); } catch (e) {}
   const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} };
@@ -380,26 +381,29 @@
   const ownedMapOf = c => owned.get(catId(c));
   function isOwned(c, id) { return ownedMapOf(c).has(id); }
   function ownedLevel(c, id) { return ownedMapOf(c).get(id) || 0; }   // 0 = owned but no level set
+  // The stored level before a change, or null when the piece was not owned. Passed to
+  // afterOwnedChange so a build can be costed against where it started from.
+  const priorLevel = (c, id) => { const m = ownedMapOf(c); return m.has(id) ? m.get(id) : null; };
   function toggleOwned(c, id) {
-    const m = ownedMapOf(c);
+    const m = ownedMapOf(c), prev = priorLevel(c, id);
     if (m.has(id)) m.delete(id); else m.set(id, 0);
-    afterOwnedChange(c, id);
+    afterOwnedChange(c, id, prev);
   }
   // Record a specific upgrade level (weapons). Clicking the already-selected level un-owns it.
   function setLevel(c, id, lv) {
-    const m = ownedMapOf(c);
+    const m = ownedMapOf(c), prev = priorLevel(c, id);
     if (m.has(id) && m.get(id) === lv) m.delete(id); else m.set(id, lv);
-    afterOwnedChange(c, id);
+    afterOwnedChange(c, id, prev);
   }
   // Alt+click shortcut: own the piece outright at its top level (level-less gear just owned).
   function setMaxOwned(c, id) {
-    const max = maxLevelOf(c, id);
+    const max = maxLevelOf(c, id), prev = priorLevel(c, id);
     ownedMapOf(c).set(id, max > 0 ? max : 0);
-    afterOwnedChange(c, id);
+    afterOwnedChange(c, id, prev);
   }
   // Quick-level a weapon by clicking its cell: unowned → owned → LV1 → … → max, then stop.
   function advanceWeapon(c, id) {
-    const m = ownedMapOf(c), max = maxLevelOf(c, id);
+    const m = ownedMapOf(c), max = maxLevelOf(c, id), prev = priorLevel(c, id);
     if (!m.has(id)) m.set(id, 0);                 // first click: mark owned
     else {
       const cur = m.get(id);
@@ -407,18 +411,52 @@
       else if (max > 0 && cur < max) m.set(id, cur + 1);      // LVn → LVn+1
       else return;                                            // already at max → stop
     }
-    afterOwnedChange(c, id);
+    afterOwnedChange(c, id, prev);
   }
-  function afterOwnedChange(c, id) {
+  function afterOwnedChange(c, id, prevLevel) {
     markDirty();
     updateProgress();
     if (viewMode === "materials") {
       renderGrid();   // material lists (totals / remaining / Complete) depend on ownership
-    } else {
+    } else if (viewMode !== "checklist") {
       const cell = $("grid").querySelector(`[data-id="${id}"][data-cat="${catId(c)}"]`);
       if (cell) updateCellOwned(cell, isOwned(c, id), ownedLevel(c, id), maxLevelOf(c, id));
     }
     if (selectedId === id && current === c) refreshDetailOwned(c, id);
+    // Building something changes both what is still needed and what is left in stock,
+    // so the checklist is redrawn once the spend has settled rather than twice.
+    spendForBuild(c, id, prevLevel).then(() => { if (viewMode === "checklist") renderChecklistView(); });
+  }
+  // Building a piece consumes what it cost. When a checklist target's owned level rises,
+  // the materials that step used come off your recorded stock — leave them there and the
+  // count still claims ore you have already spent, which the next target would then
+  // silently draw on. The amount deducted is the drop in this piece's own remaining cost,
+  // measured with the engine itself (cost at the old level minus cost at the new one)
+  // rather than a second copy of the walk, so creation and upgrades are both covered.
+  // Level-ups only: un-owning does not refund, because it means "I was wrong about owning
+  // this", not "I took it apart and got the parts back".
+  async function spendForBuild(c, id, prevLevel) {
+    if (prevLevel === undefined || !settings.spendMats || !haveMats.size || !isTargeted(c, id)) return;
+    const was = prevLevel === null ? 0 : Math.max(1, prevLevel);
+    const now = isOwned(c, id) ? Math.max(1, ownedLevel(c, id)) : 0;
+    if (now <= was) return;
+    const data = await loadMaterials(c.statsFile);
+    if (!data) return;
+    const m = ownedMapOf(c), cur = m.has(id) ? m.get(id) : null;
+    const after = targetCost(c, id, data).map;
+    if (prevLevel === null) m.delete(id); else m.set(id, prevLevel);
+    const before = targetCost(c, id, data).map;
+    if (cur === null) m.delete(id); else m.set(id, cur);
+    let spent = false;
+    for (const [n, need] of before) {
+      const used = need - (after.get(n) || 0);
+      const have = haveMats.get(n) || 0;
+      if (used <= 0 || !have) continue;
+      const left = Math.max(0, have - used);
+      if (left) haveMats.set(n, left); else haveMats.delete(n);
+      spent = true;
+    }
+    if (spent) markDirty();   // the autosave scheduled before the await may already be queued
   }
   // ── Checklist targets ──────────────────────────────────────────────────
   const targetsMapOf = c => targets.get(catId(c));
@@ -532,7 +570,10 @@
     // current category header bar
     const n = catOwnedCount(current), d = catTotal(current);
     $("catProgressFill").style.width = d ? (n / d * 100) + "%" : "0";
-    $("catCount").textContent = `${n} / ${d} owned`;
+    // Totals and the checklist span every category, so the header is theirs, not the
+    // selected category's — marking a piece owned must not stamp a count over it.
+    if (viewMode === "totals" || viewMode === "checklist") updateViewHeader();
+    else $("catCount").textContent = `${n} / ${d} owned`;
   }
 
   // ── Sidebar ────────────────────────────────────────────────────────────
@@ -852,6 +893,19 @@
     }
     return out;
   }
+  // − 12 + around whatever the column shows. Both tables get one so a material can be
+  // counted up from wherever you happen to be reading it; the buttons always adjust the
+  // one global stock, which in a target's row is the number the allocation drew from.
+  // tabindex -1 keeps Tab running down the inputs rather than through three controls a row.
+  const stepperHtml = (mat, inner) => {
+    const m = escapeHtml(mat);
+    return `<div class="chk-stepper">
+      <button type="button" class="chk-step" data-mat="${m}" data-d="-1" tabindex="-1"
+        title="One fewer ${m}" aria-label="One fewer ${m}">&minus;</button>${inner}<button
+        type="button" class="chk-step" data-mat="${m}" data-d="1" tabindex="-1"
+        title="One more ${m}" aria-label="One more ${m}">+</button></div>`;
+  };
+  const chkRowKey = el => el.classList.contains("chk-summary") ? "sum" : `${el.dataset.cat}:${el.dataset.id}`;
   async function renderChecklistView() {
     const token = ++checklistViewToken;
     const grid = $("grid");
@@ -862,8 +916,18 @@
         + 'to start a build list.</div>';
       return;
     }
-    grid.innerHTML = '<div class="detail-note" style="padding:20px">Loading materials…</div>';
+    // A stepper click redraws the whole view, so the redraw has to be invisible: which
+    // rows were expanded, where the page sat and which input held focus all survive it.
+    // Without that, one + collapses the list and throws you back to the top.
+    const openKeys = new Set([...grid.querySelectorAll(".totals-row.open")].map(chkRowKey));
+    const scroller = grid.closest(".content-inner");   // the pane that actually scrolls
+    const scrollTop = scroller ? scroller.scrollTop : 0;
+    const active = document.activeElement;
+    const focusMat = active && active.classList && active.classList.contains("chk-have") ? active.dataset.mat : null;
     const files = [...new Set(list.map(t => t.c.statsFile))];
+    // Only flash a placeholder on the first render; later ones are served from cache.
+    if (!files.every(f => materialsCache.has(f)))
+      grid.innerHTML = '<div class="detail-note" style="padding:20px">Loading materials…</div>';
     const dataByFile = {};
     await Promise.all(files.map(f =>
       loadMaterials(f).then(d => { dataByFile[f] = d; }).catch(() => { dataByFile[f] = null; })));
@@ -911,8 +975,8 @@
         <tbody>${summary.map(m => `<tr${m.short ? "" : ' class="done"'}>
           <td>${escapeHtml(m.n)}</td>
           <td class="num">${fmtNum(m.need)}</td>
-          <td class="num"><input type="number" class="chk-have" min="0" inputmode="numeric"
-              value="${m.have || ""}" placeholder="0" data-mat="${escapeHtml(m.n)}" title="How many you hold"></td>
+          <td class="num">${stepperHtml(m.n, `<input type="number" class="chk-have" min="0" inputmode="numeric"
+              value="${m.have || ""}" placeholder="0" data-mat="${escapeHtml(m.n)}" title="How many you hold">`)}</td>
           <td class="num chk-short${m.short ? "" : " ok"}">${m.short ? fmtNum(m.short) : "✓"}</td>
         </tr>`).join("")}</tbody></table></div></div>`;
 
@@ -926,7 +990,7 @@
                 <tbody>${r.lines.map(l => { const short = Math.max(0, l.need - l.covered); return `<tr${short ? "" : ' class="done"'}>
                   <td>${escapeHtml(l.n)}</td>
                   <td class="num">${fmtNum(l.need)}</td>
-                  <td class="num">${fmtNum(l.covered)}</td>
+                  <td class="num">${stepperHtml(l.n, `<span class="chk-alloc">${fmtNum(l.covered)}</span>`)}</td>
                   <td class="num chk-short${short ? "" : " ok"}">${short ? fmtNum(short) : "✓"}</td>
                 </tr>`; }).join("")}</tbody></table>`
             : '<div class="detail-note">Nothing outstanding.</div>')
@@ -944,6 +1008,14 @@
       on your checklist. Enter what you hold in the summary — counts are global, so a material
       shared by several targets is only counted once. Targets below are covered top to bottom.</div>`;
     grid.innerHTML = note + summaryHtml + rows.map(rowHtml).join("");
+    grid.querySelectorAll(".totals-row").forEach(el => {
+      if (openKeys.has(chkRowKey(el))) el.classList.add("open");
+    });
+    if (scroller) scroller.scrollTop = scrollTop;
+    if (focusMat) {
+      const back = [...grid.querySelectorAll(".chk-have")].find(i => i.dataset.mat === focusMat);
+      if (back) { back.focus(); back.select(); }
+    }
     grid.querySelectorAll(".totals-row").forEach(el => {
       el.querySelector(".mat-view-head").addEventListener("click", ev => {
         if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey) return;   // let the gesture through
@@ -1142,6 +1214,25 @@
     setHaveMat(inp.dataset.mat, inp.value);
     if (viewMode === "checklist") renderChecklistView();
   });
+  // − / + on a material. Held down, these repeat like a key, so counting up a stack of
+  // 30 does not mean 30 separate clicks.
+  let stepTimer = null, stepRepeat = null;
+  const stopStepping = () => { clearTimeout(stepTimer); clearInterval(stepRepeat); stepTimer = stepRepeat = null; };
+  function stepMat(mat, d) {
+    setHaveMat(mat, (haveMats.get(mat) || 0) + d);
+    if (viewMode === "checklist") renderChecklistView();
+  }
+  $("grid").addEventListener("pointerdown", ev => {
+    const btn = ev.target.closest(".chk-step");
+    if (!btn || ev.button) return;
+    ev.preventDefault();          // keep focus where it is; the row must not scroll away
+    const mat = btn.dataset.mat, d = Number(btn.dataset.d);
+    stepMat(mat, d);
+    stopStepping();
+    stepTimer = setTimeout(() => { stepRepeat = setInterval(() => stepMat(mat, d), 90); }, 420);
+  });
+  ["pointerup", "pointercancel", "pointerleave", "blur"].forEach(e =>
+    window.addEventListener(e, stopStepping));
   $("grid").addEventListener("click", ev => {
     // Checklist rows carry data-id/data-cat and reuse .mat-view-row, so any click inside
     // one would otherwise reach the ownership logic below — clicking a material line to
@@ -2033,6 +2124,7 @@
   bindSetting("ctrlRemoveToggle", "ctrlRemove");
   bindSetting("altMaxToggle", "altMax");
   bindSetting("shiftTargetToggle", "shiftTarget");
+  bindSetting("spendMatsToggle", "spendMats");
   bindToggle("localSaveToggle", () => localSaveEnabled, v => {
     localSaveEnabled = v;
     try {

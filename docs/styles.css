@@ -417,9 +417,22 @@ body{
   font-variant-numeric:tabular-nums;padding-right:0}
 .chk-table th.num:not(:last-child),.chk-table td.num:not(:last-child){padding-right:14px}
 .chk-table tr.done td{opacity:.45}
-.chk-have{width:58px;background:var(--bg2);color:var(--text);
+/* − 12 + . The buttons sit flush either side of the count so the column still reads as
+   a number, and they hold their width whether the row shows an input or a plain figure. */
+.chk-stepper{display:flex;align-items:center;justify-content:flex-end;gap:4px}
+.chk-step{width:19px;height:19px;flex:0 0 19px;padding:0;line-height:1;
+  background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:5px;
+  font-size:13px;font-weight:700;cursor:pointer;opacity:.55;
+  display:flex;align-items:center;justify-content:center;user-select:none}
+.chk-step:hover{opacity:1;border-color:var(--accent-hover)}
+.chk-step:active{background:var(--accent)}
+.chk-alloc{min-width:26px;text-align:right}
+.chk-have{width:48px;background:var(--bg2);color:var(--text);
   border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px;
   font-variant-numeric:tabular-nums;text-align:right}
 .chk-have:focus{outline:none;border-color:var(--accent-hover)}
+/* The spinners duplicate the − / + buttons and only appear on hover, so they go. */
+.chk-have::-webkit-inner-spin-button,.chk-have::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.chk-have{-moz-appearance:textfield;appearance:textfield}
 .chk-short{color:#ff9a9a}
 .chk-short.ok{color:#7fdc7f}
