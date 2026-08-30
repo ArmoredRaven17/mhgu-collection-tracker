@@ -2060,6 +2060,7 @@
   }
   bindModal("aboutBtn", "aboutModal", "aboutClose");
   bindModal("linksBtn", "linksModal", "linksClose");
+  bindModal("helpBtn", "helpModal", "helpClose");
   $("themeBtn").addEventListener("click", () => $("themeModal").classList.remove("hidden"));
   $("themeClose").addEventListener("click", () => $("themeModal").classList.add("hidden"));
   $("themeModal").addEventListener("click", e => { if (e.target.id === "themeModal") $("themeModal").classList.add("hidden"); });

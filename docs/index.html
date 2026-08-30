@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MHGU Collection Tracker</title>
 <link rel="icon" type="image/png" href="assets/icons/icon_armor_body_r1.png">
-<link rel="stylesheet" href="styles.css?v=36">
+<link rel="stylesheet" href="styles.css?v=37">
 </head>
 <body>
 <div id="app">
@@ -21,6 +21,7 @@
     <input type="file" id="importFile" accept=".json,application/json" class="hidden">
     <button id="linksBtn" class="icon-btn" title="Other MHGU apps" aria-label="Other MHGU apps">&#128279;</button>
     <button id="themeBtn" class="icon-btn" title="Settings" aria-label="Settings">&#9881;</button>
+    <button id="helpBtn" class="icon-btn" title="Shortcuts &amp; gestures" aria-label="Shortcuts and gestures">?</button>
     <button id="aboutBtn" class="icon-btn" title="About / Attributions" aria-label="About">&#9432;</button>
   </header>
 
@@ -129,6 +130,66 @@
         </aside>
       </div>
     </main>
+  </div>
+</div>
+
+<!-- Shortcuts / gestures dialog -->
+<div id="helpModal" class="modal hidden">
+  <div class="modal-card help-card">
+    <h2>Shortcuts &amp; Gestures</h2>
+    <p class="muted">Almost everything is a click with a modifier held. Every gesture below
+      can be switched off individually in Settings.</p>
+
+    <div class="set-section">
+      <div class="set-title">Marking equipment</div>
+      <dl class="kb-list">
+        <dt><kbd>Click</kbd></dt>
+        <dd>Open a piece and read its details. The first click only inspects &mdash; it changes nothing.</dd>
+        <dt><kbd>Click</kbd> again</dt>
+        <dd>On the piece already open: marks it owned, then raises it one level per click up to its
+          maximum. Gear with no levels just gets marked owned.</dd>
+        <dt><kbd>Ctrl</kbd> / <kbd>&#8984;</kbd> + <kbd>Click</kbd></dt>
+        <dd>Own it, or un-own it. This is the way back out if you marked something by mistake.</dd>
+        <dt><kbd>Alt</kbd> + <kbd>Click</kbd></dt>
+        <dd>Own it at its highest level in one go.</dd>
+        <dt><kbd>Shift</kbd> + <kbd>Click</kbd></dt>
+        <dd>Put it on the checklist, or take it off.</dd>
+      </dl>
+    </div>
+
+    <div class="set-section">
+      <div class="set-title">In the detail panel</div>
+      <dl class="kb-list">
+        <dt><kbd>Click</kbd> a level row</dt>
+        <dd>Set the piece to that level. Clicking the level it is already at un-owns it.</dd>
+      </dl>
+    </div>
+
+    <div class="set-section">
+      <div class="set-title">On the checklist</div>
+      <dl class="kb-list">
+        <dt><kbd>Click</kbd> a row header</dt>
+        <dd>Show or hide that piece's materials. A plain click anywhere else on the checklist
+          deliberately does nothing, so reading a list can't change what you own.</dd>
+        <dt><kbd>&minus;</kbd> <kbd>+</kbd></dt>
+        <dd>Count a material down or up. Hold either one and it repeats.</dd>
+        <dt>Type in a <b>Have</b> box</dt>
+        <dd>Set a count outright. It applies when you press <kbd>Enter</kbd> or leave the field.</dd>
+        <dt><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>Shift</kbd> + <kbd>Click</kbd></dt>
+        <dd>Still work here, so you can tick a piece off as built without leaving the list.</dd>
+      </dl>
+    </div>
+
+    <div class="set-section">
+      <div class="set-title">Saving</div>
+      <dl class="kb-list">
+        <dt><kbd>Ctrl</kbd> / <kbd>&#8984;</kbd> + <kbd>S</kbd></dt>
+        <dd>Save to your file. Your collection is also kept in this browser automatically,
+          unless you have turned that off.</dd>
+      </dl>
+    </div>
+
+    <div class="row end"><button id="helpClose" class="btn">Close</button></div>
   </div>
 </div>
 
@@ -297,6 +358,6 @@
 
 <script src="data/catalog.js?v=12"></script>
 <script src="data/armor_levels.js?v=2"></script>
-<script src="app.js?v=92"></script>
+<script src="app.js?v=93"></script>
 </body>
 </html>

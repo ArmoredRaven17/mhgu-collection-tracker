@@ -376,6 +376,19 @@ body{
 .totals-row.open .totals-chev{transform:rotate(180deg);display:inline-block}
 
 /* Other MHGU apps modal */
+/* Shortcuts dialog. Wider than the other cards because every row is a gesture on the
+   left and a sentence on the right, and the gesture must not wrap mid-chord. */
+.help-card{width:min(560px,92vw)}
+.kb-list{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;margin:0}
+.kb-list dt{font-size:12px;white-space:nowrap;padding-top:1px}
+.kb-list dd{margin:0;font-size:12.5px;line-height:1.4;opacity:.82}
+kbd{display:inline-block;background:var(--bg2);border:1px solid var(--line);
+  border-bottom-width:2px;border-radius:4px;padding:1px 6px;font-family:inherit;
+  font-size:11px;font-weight:600;line-height:1.5;white-space:nowrap}
+@media (max-width:520px){
+  .kb-list{grid-template-columns:1fr;gap:2px}
+  .kb-list dd{margin-bottom:8px}
+}
 .app-links{list-style:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:10px}
 .app-links li{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:#ffffff08}
 .app-links li.current{opacity:.72}
