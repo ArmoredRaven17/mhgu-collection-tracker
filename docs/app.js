@@ -1405,6 +1405,10 @@
   const saveOpts = { suggestedName: "mhgu-collection.json", types: [{ description: "JSON", accept: { "application/json": [".json"] } }] };
 
   async function saveToFile(forceNew) {
+    // Re-read the other apps' sections first, exactly as writeLocalSave does. Without
+    // this a file save serializes whatever carriedKeys held at the last load, so a
+    // change another app made since could be written back stale.
+    refreshCarriedFromStorage();
     const data = JSON.stringify(serializeSave(), null, 2);
     if (supportsFsApi) {
       try {
