@@ -33,6 +33,10 @@ const warnings = [];
 const warn = m => warnings.push(m);
 
 // ── Weapon class definitions (display order) ──────────────────────────────
+// Guild Card order, which is what a player reads lists in: melee by class, then the
+// two bowguns, and Bow last — NOT the blademaster/gunner grouping that would put Bow
+// with the ranged weapons. Catalog key order IS the sidebar order in every app that
+// reads catalog.js, so this list is the single place it is decided.
 const WEAPON_CLASSES = [
   { name: 'Great Sword',     slug: 'great_sword',      file: 'greatsword.json' },
   { name: 'Long Sword',      slug: 'long_sword',       file: 'longsword.json' },
@@ -45,9 +49,9 @@ const WEAPON_CLASSES = [
   { name: 'Switch Axe',      slug: 'switch_axe',       file: 'switchaxe.json' },
   { name: 'Charge Blade',    slug: 'charge_blade',     file: 'chargeblade.json' },
   { name: 'Insect Glaive',   slug: 'insect_glaive',    file: 'insectglaive.json' },
-  { name: 'Bow',             slug: 'bow',              file: 'bow.json' },
   { name: 'Light Bowgun',    slug: 'light_bowgun',     file: 'lightbowgun.json' },
   { name: 'Heavy Bowgun',    slug: 'heavy_bowgun',     file: 'heavybowgun.json' },
+  { name: 'Bow',             slug: 'bow',              file: 'bow.json' },
 ];
 
 // Armor lists in game are ordered by id, but with occasional exceptions the id does
