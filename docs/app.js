@@ -416,8 +416,8 @@
   function afterOwnedChange(c, id, prevLevel) {
     markDirty();
     updateProgress();
-    if (viewMode === "materials") {
-      renderGrid();   // material lists (totals / remaining / Complete) depend on ownership
+    if (viewMode === "materials" || viewMode === "routes") {
+      renderGrid();   // material lists depend on ownership; routes rows are not cells to patch
     } else if (viewMode !== "checklist") {
       const cell = $("grid").querySelector(`[data-id="${id}"][data-cat="${catId(c)}"]`);
       if (cell) updateCellOwned(cell, isOwned(c, id), ownedLevel(c, id), maxLevelOf(c, id));
@@ -488,7 +488,7 @@
     markDirty();
     // A full re-render is needed when the visible set itself depends on targeting —
     // otherwise an untargeted piece lingers in a list it no longer belongs to.
-    if (viewMode === "checklist" || viewMode === "materials" || filters.owned === "target") renderGrid();
+    if (viewMode === "checklist" || viewMode === "materials" || viewMode === "routes" || filters.owned === "target") renderGrid();
     else {
       const cell = $("grid").querySelector(`[data-id="${id}"][data-cat="${catId(c)}"]`);
       if (cell) updateCellTarget(cell, isTargeted(c, id));
@@ -747,7 +747,8 @@
   function renderGrid() {
     const grid = $("grid");
     grid.classList.toggle("view-list", viewMode === "list");
-    grid.classList.toggle("view-materials", viewMode === "materials" || viewMode === "totals" || viewMode === "checklist");
+    grid.classList.toggle("view-materials",
+      viewMode === "materials" || viewMode === "routes" || viewMode === "totals" || viewMode === "checklist");
     // Totals and Checklist span every category, so neither goes through currentItems().
     if (viewMode === "totals") { updateViewHeader(); $("gridEmpty").classList.add("hidden"); renderTotalsView(); return; }
     if (viewMode === "checklist") { updateViewHeader(); $("gridEmpty").classList.add("hidden"); renderChecklistView(); return; }
@@ -756,6 +757,7 @@
     if (!items.length) { grid.innerHTML = ""; $("gridEmpty").classList.remove("hidden"); return; }
     $("gridEmpty").classList.add("hidden");
     if (viewMode === "materials") { renderMaterialsView(items); return; }
+    if (viewMode === "routes") { renderRoutesView(items); return; }
     const render = viewMode === "list" ? listRowHtml : cellHtml;
     grid.innerHTML = items.map(render).join("");
   }
@@ -775,6 +777,99 @@
       : "";
     grid.innerHTML = note + items.map(it => materialsRowHtml(it.cat, it.id, it, dataByFile[it.cat.statsFile])).join("");
   }
+  // ── Crafting Routes View — how each weapon in the list is obtained ──
+  // Three questions per weapon, all answered from its level-1 recipe (`create`):
+  //   Created directly  — it has a Create recipe (`create.d`).
+  //   Needs base weapon — it has NO Create recipe, only an upgrade from another weapon
+  //                       (`create.f` alone). The whole chain is listed: each base is
+  //                       followed up while it too can only be upgraded into, and the walk
+  //                       stops at the first one that can be created.
+  //   Branch weapon     — it CAN be created, and another weapon also upgrades into it
+  //                       (`create.d` and `create.f`): an optional route, not a required one.
+  // So one upgrade relation lands under Base or Branch purely on whether a Create recipe
+  // exists — the same split as the detail panel's "Upgrade from" / "Or upgrade from".
+  // mhgu.db records at most one upgrade source per weapon (checked: none has two), so a
+  // single `f` is the whole answer. Weapons with neither are relics, DUMMY or event gear.
+  let routesViewToken = 0;
+  function baseChain(data, id) {
+    const create = data.create || {}, chain = [], seen = new Set([id]);
+    let cr = create[String(id)];
+    while (cr && cr.f && !seen.has(cr.f[0])) {
+      const [sid, slv] = cr.f, src = create[String(sid)];
+      seen.add(sid);
+      chain.push({ id: sid, lv: slv, relic: !src });
+      if (!src || src.d) break;      // this base can be created (or has no recipe): the chain ends
+      cr = src;
+    }
+    return chain;
+  }
+  // Links use data-jump-* rather than data-id/data-cat: the badge updaters find a piece by
+  // [data-id][data-cat], and a link to a weapon must not be mistaken for its row.
+  // Name and level travel as one unit so a narrow column wraps between steps, not inside one.
+  const routeLinkHtml = (c, sid, lv, extra = "") => {
+    const n = escapeHtml(weaponTreeName(c, sid));
+    return `<span class="route-step"><button type="button" class="route-link" data-jump-cat="${catId(c)}"
+      data-jump-id="${sid}" title="Show ${n}">${n}</button><span class="route-lv">LV ${lv}</span>${extra}</span>`;
+  };
+  function routeRowHtml(it, data) {
+    const c = it.cat, yes = '<span class="route-yes">Yes</span>', no = '<span class="route-no">No</span>';
+    const dash = '<span class="route-no">&mdash;</span>';
+    const cr = data && data.create ? data.create[String(it.id)] : null;
+    let direct, base, branch, tag = "";
+    if (!data) {
+      direct = base = branch = '<span class="route-no">?</span>';
+      tag = '<span class="route-tag">recipes unavailable</span>';
+    } else if (!cr) {
+      direct = no; base = no; branch = dash;
+      tag = '<span class="route-tag">no recipe &middot; relic / event</span>';
+    } else {
+      direct = cr.d ? yes : no;
+      base = !cr.d && cr.f
+        ? yes + `<ol class="route-chain">${baseChain(data, it.id).map((st, i) =>
+            `<li style="--depth:${i}">${routeLinkHtml(c, st.id, st.lv,
+              st.relic ? '<span class="route-tag">no recipe</span>' : "")}</li>`).join("")}</ol>`
+        : no;
+      branch = cr.d && cr.f ? routeLinkHtml(c, cr.f[0], cr.f[1]) : dash;
+    }
+    const sel = current === c && selectedId === it.id ? " selected" : "";
+    return `<tr class="route-row${sel}" data-id="${it.id}" data-cat="${catId(c)}">
+      <td class="route-name"><img class="list-icon" src="${iconPath(it.iconSlug, it.rar)}" alt="" loading="lazy"><span
+        class="list-name">${escapeHtml(it.name)}</span>${tag}</td>
+      <td>${direct}</td><td>${base}</td><td>${branch}</td></tr>`;
+  }
+  async function renderRoutesView(items) {
+    const token = ++routesViewToken;
+    const grid = $("grid");
+    const weapons = items.filter(it => it.kind === "w");
+    if (!weapons.length) {
+      grid.innerHTML = '<div class="mat-view-note">Crafting routes are about weapons &mdash; pick a weapon class '
+        + 'to see how each one is made.</div>';
+      return;
+    }
+    // Owning or targeting a piece redraws the table, so keep the reader where they were.
+    const scroller = scrollHost(grid), scrollTop = scroller ? scroller.scrollTop : 0;
+    const files = [...new Set(weapons.map(it => it.cat.statsFile))];
+    if (!files.every(f => materialsCache.has(f)))
+      grid.innerHTML = '<div class="detail-note" style="padding:20px">Loading recipes…</div>';
+    const dataByFile = {};
+    await Promise.all(files.map(f => loadMaterials(f).then(d => { dataByFile[f] = d; }).catch(() => { dataByFile[f] = null; })));
+    if (token !== routesViewToken) return;   // a newer render superseded this one
+    const left = items.length - weapons.length;
+    grid.innerHTML = `<div class="route-wrap"><table class="route-table">
+        <thead><tr><th>Weapon</th><th>Created directly</th><th>Needs base weapon</th><th>Branch weapon</th></tr></thead>
+        <tbody>${weapons.map(it => routeRowHtml(it, dataByFile[it.cat.statsFile])).join("")}</tbody>
+      </table></div>` + (left ? `<div class="mat-view-note">${left} armor / Palico piece${left === 1 ? "" : "s"}
+        in these results ${left === 1 ? "is" : "are"} not shown &mdash; crafting routes are for weapons.</div>` : "");
+    if (scroller) scroller.scrollTop = scrollTop;
+  }
+  // Jump to a weapon named in a route: show it, and mark its row if it is in the table.
+  function showRouteWeapon(c, id) {
+    $("grid").querySelectorAll(".route-row.selected").forEach(x => x.classList.remove("selected"));
+    const row = $("grid").querySelector(`.route-row[data-id="${id}"][data-cat="${catId(c)}"]`);
+    if (row) { row.classList.add("selected"); row.scrollIntoView({ block: "nearest" }); }
+    openDetail(c, id);
+  }
+
   // ── Totals View — every category at once, merged outstanding cost ──
   // The only view that spans categories. It counts what you still owe: anything you
   // already own is treated as already paid for, so owning a piece drops its creation
@@ -905,6 +1000,15 @@
         type="button" class="chk-step" data-mat="${m}" data-d="1" tabindex="-1"
         title="One more ${m}" aria-label="One more ${m}">+</button></div>`;
   };
+  // Which element scrolls the list depends on the layout: #grid itself on a wide screen,
+  // an outer pane once the columns stack. A redraw has to put back whichever it is.
+  function scrollHost(el) {
+    for (let p = el; p && p !== document.body; p = p.parentElement) {
+      const oy = getComputedStyle(p).overflowY;
+      if ((oy === "auto" || oy === "scroll") && p.scrollHeight > p.clientHeight) return p;
+    }
+    return null;
+  }
   const chkRowKey = el => el.classList.contains("chk-summary") ? "sum" : `${el.dataset.cat}:${el.dataset.id}`;
   async function renderChecklistView() {
     const token = ++checklistViewToken;
@@ -920,8 +1024,7 @@
     // rows were expanded, where the page sat and which input held focus all survive it.
     // Without that, one + collapses the list and throws you back to the top.
     const openKeys = new Set([...grid.querySelectorAll(".totals-row.open")].map(chkRowKey));
-    const scroller = grid.closest(".content-inner");   // the pane that actually scrolls
-    const scrollTop = scroller ? scroller.scrollTop : 0;
+    const scroller = scrollHost(grid), scrollTop = scroller ? scroller.scrollTop : 0;
     const active = document.activeElement;
     const focusMat = active && active.classList && active.classList.contains("chk-have") ? active.dataset.mat : null;
     const files = [...new Set(list.map(t => t.c.statsFile))];
@@ -1247,6 +1350,12 @@
   ["pointerup", "pointercancel", "pointerleave", "blur"].forEach(e =>
     window.addEventListener(e, stopStepping));
   $("grid").addEventListener("click", ev => {
+    const jump = ev.target.closest(".route-link");
+    if (!jump) return;
+    const c = catByIdMap.get(jump.dataset.jumpCat), id = Number(jump.dataset.jumpId);
+    if (c && Number.isInteger(id)) showRouteWeapon(c, id);
+  });
+  $("grid").addEventListener("click", ev => {
     // Checklist rows carry data-id/data-cat and reuse .mat-view-row, so any click inside
     // one would otherwise reach the ownership logic below — clicking a material line to
     // read it would mark the piece owned, or level it up. In the checklist a plain click
@@ -1254,7 +1363,7 @@
     // modifier gestures still work so you can tick a piece off once you have built it.
     if (ev.target.closest("input, button, select, label")) return;
     if (viewMode === "checklist" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) return;
-    const cell = ev.target.closest(".box-cell, .list-row, .mat-view-row");
+    const cell = ev.target.closest(".box-cell, .list-row, .mat-view-row, .route-row");
     if (!cell) return;
     const c = catByIdMap.get(cell.dataset.cat);
     const id = Number(cell.dataset.id);
@@ -1262,6 +1371,9 @@
     if (ev.shiftKey && settings.shiftTarget) { toggleTarget(c, id); return; }
     if (ev.altKey && settings.altMax) { setMaxOwned(c, id); return; }
     if ((ev.ctrlKey || ev.metaKey) && settings.ctrlRemove) { toggleOwned(c, id); return; }
+    // Crafting routes is a reference table: a plain click shows the weapon and never
+    // advances it, however many times you click the same row.
+    if (viewMode === "routes") { showRouteWeapon(c, id); return; }
     const alreadyOpen = selectedId === id && current === c;
     if (alreadyOpen) {
       // Repeat click on the open piece. The whole behaviour is behind clickLevel, so
@@ -1998,7 +2110,7 @@
     } else updateSearchTitle();
   }
   function setView(v) {
-    viewMode = (v === "list" || v === "materials" || v === "totals" || v === "checklist") ? v : "grid";
+    viewMode = (v === "list" || v === "materials" || v === "routes" || v === "totals" || v === "checklist") ? v : "grid";
     try { localStorage.setItem("mhgu-tracker-view", viewMode); } catch (e) {}
     $("viewToggle").querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.view === viewMode));
     updateViewHeader();

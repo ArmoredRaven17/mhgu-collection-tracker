@@ -389,6 +389,37 @@ kbd{display:inline-block;background:var(--bg2);border:1px solid var(--line);
   .kb-list{grid-template-columns:1fr;gap:2px}
   .kb-list dd{margin-bottom:8px}
 }
+/* Crafting routes. A real table: the three questions read across each weapon, and a
+   chain of base weapons stacks inside its cell, each step indented one further than the
+   last so "needs X, which needs Y" reads down and in. The column beside the detail panel
+   can be under 300px, so names, headings and chains all wrap rather than push the Branch
+   column out of view; a weapon name and its level never split from each other. */
+.route-wrap{overflow-x:auto;flex-shrink:0}   /* overflow zeroes its min-height; without this
+                                               the stacked #grid squeezes the table */
+.route-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.route-table th{text-align:left;opacity:.6;font-weight:600;font-size:11px;
+  padding:4px 10px 6px 0;vertical-align:bottom;line-height:1.25}
+.route-table td{padding:6px 10px 6px 0;border-top:1px solid #ffffff0d;vertical-align:top}
+.route-row{cursor:pointer}
+.route-row:hover td{background:#ffffff08}
+.route-row.selected td{background:color-mix(in srgb,var(--accent) 34%,transparent)}
+.route-name{display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap}
+.route-name .list-icon{flex:0 0 auto}
+.route-name .list-name{flex:1 1 90px;min-width:0;white-space:normal;line-height:1.3}
+.route-yes{color:#7fdc7f;font-weight:600}
+.route-no{opacity:.45}
+.route-tag{font-size:10.5px;opacity:.55;flex-basis:100%}
+.route-chain{list-style:none;margin:3px 0 0;padding:0}
+.route-chain li{padding-left:calc(var(--depth,0) * 10px);line-height:1.35;margin-top:3px;
+  display:flex;gap:4px}
+.route-chain li::before{content:"\21B3";opacity:.45;flex:0 0 auto}
+.route-step{display:inline-flex;flex-wrap:wrap;align-items:baseline;column-gap:5px}
+.route-link{background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left;
+  text-decoration:underline;text-decoration-color:#ffffff40;text-underline-offset:2px}
+.route-link:hover{text-decoration-color:currentColor}
+.route-lv{font-size:10.5px;opacity:.55;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* The view button's branch glyph sits in a row of text glyphs; block keeps it centred. */
+.view-ico{display:block}
 .app-links{list-style:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:10px}
 .app-links li{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:#ffffff08}
 .app-links li.current{opacity:.72}

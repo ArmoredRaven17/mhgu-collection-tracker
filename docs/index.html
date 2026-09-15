@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MHGU Collection Tracker</title>
 <link rel="icon" type="image/png" href="assets/icons/icon_armor_body_r1.png">
-<link rel="stylesheet" href="styles.css?v=39">
+<link rel="stylesheet" href="styles.css?v=42">
 </head>
 <body>
 <div id="app">
@@ -115,6 +115,11 @@
                 <button type="button" data-view="grid" title="Grid view" aria-label="Grid view">▦</button>
                 <button type="button" data-view="list" title="List view" aria-label="List view">☰</button>
                 <button type="button" data-view="materials" title="Materials view" aria-label="Materials view">🧾</button>
+                <button type="button" data-view="routes" title="Crafting routes — how each weapon is made" aria-label="Crafting routes view"><svg
+                  class="view-ico" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="none" stroke="currentColor"
+                  stroke-width="1.6" stroke-linecap="round" d="M4 3v10M4 9.5c0-3.2 8-2.3 8-6"/><circle cx="4" cy="13.2" r="1.7"
+                  fill="currentColor"/><circle cx="4" cy="2.8" r="1.7" fill="currentColor"/><circle cx="12" cy="3.5" r="1.7"
+                  fill="currentColor"/></svg></button>
                 <button type="button" data-view="totals" title="Totals view — every category's remaining upgrade materials" aria-label="Totals view">&Sigma;</button>
                 <button type="button" data-view="checklist" title="Checklist — materials for the pieces you're building" aria-label="Checklist view">&#9733;</button>
               </div>
@@ -162,6 +167,16 @@
       <dl class="kb-list">
         <dt><kbd>Click</kbd> a level row</dt>
         <dd>Set the piece to that level. Clicking the level it is already at un-owns it.</dd>
+      </dl>
+    </div>
+
+    <div class="set-section">
+      <div class="set-title">In crafting routes</div>
+      <dl class="kb-list">
+        <dt><kbd>Click</kbd> a row</dt>
+        <dd>Show that weapon in the detail panel. Clicking it again does not level it up here.</dd>
+        <dt><kbd>Click</kbd> a weapon name</dt>
+        <dd>Jump to a base or branch weapon named in a route.</dd>
       </dl>
     </div>
 
@@ -366,6 +381,6 @@
 
 <script src="data/catalog.js?v=13"></script>
 <script src="data/armor_levels.js?v=2"></script>
-<script src="app.js?v=95"></script>
+<script src="app.js?v=98"></script>
 </body>
 </html>
