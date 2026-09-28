@@ -2078,27 +2078,38 @@
     }
     if (dirty) { e.preventDefault(); e.returnValue = ""; }
   });
-  // ── Grid keyboard navigation ───────────────────────────────────────────
-  // Arrows or WASD walk the grid, showing each piece as you land on it — the same
+  // ── Keyboard navigation for the grid and list ──────────────────────────
+  // Arrows or WASD walk the pieces, showing each one as you land on it — the same
   // thing a plain click does, so nothing is marked or levelled by moving around.
   // Left and right run through the list in order, crossing row ends the way reading
   // does; up and down step a whole row. The column count is read from the resolved
   // grid template rather than measured from cell positions, so it stays correct
-  // through a resize and does not depend on how tall a cell happens to be.
+  // through a resize and does not depend on how tall a cell happens to be. List view
+  // falls out of the same code: it is a flex column, so the template resolves to
+  // "none", the count is 1, and all four directions move one row.
   const GRID_NAV = { arrowleft: [-1, 0], a: [-1, 0], arrowright: [1, 0], d: [1, 0],
                      arrowup: [0, -1], w: [0, -1], arrowdown: [0, 1], s: [0, 1] };
   const isTypingTarget = el => !!el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName));
-  function gridColumns(grid) {
-    const tracks = getComputedStyle(grid).gridTemplateColumns;
-    return Math.max(1, tracks && tracks !== "none" ? tracks.split(/\s+/).filter(Boolean).length : 1);
+  const NAV_ITEM = () => viewMode === "list" ? ".list-row" : ".box-cell";
+  // Only resolved track sizes count. A grid container reports its used tracks in px, but
+  // list view's #grid is a flex column, where the property hands back the specified value
+  // instead — "repeat(auto-fill, minmax(52px, 1fr))" would otherwise be read as 3 columns
+  // and send every Down three rows at a time. Anything unresolved falls back to counting
+  // the items that share the first one's top edge.
+  function gridColumns(grid, items) {
+    const tracks = (getComputedStyle(grid).gridTemplateColumns || "").split(/\s+/).filter(t => t.endsWith("px"));
+    if (tracks.length) return tracks.length;
+    if (!items || !items.length) return 1;
+    const top = items[0].offsetTop;
+    return Math.max(1, items.filter(el => el.offsetTop === top).length);
   }
-  function moveGridSelection(dx, dy) {
-    const grid = $("grid"), cells = [...grid.querySelectorAll(".box-cell")];
+  function moveSelection(dx, dy) {
+    const grid = $("grid"), cells = [...grid.querySelectorAll(NAV_ITEM())];
     if (!cells.length) return;
     const cur = cells.findIndex(el => el.classList.contains("selected")
       || (current && el.dataset.cat === catId(current) && Number(el.dataset.id) === selectedId));
     // Nothing selected yet — the first key press lands on the first piece.
-    const next = cur < 0 ? 0 : cur + (dx || dy * gridColumns(grid));
+    const next = cur < 0 ? 0 : cur + (dx || dy * gridColumns(grid, cells));
     if (next < 0 || next >= cells.length) return;   // walking off an edge stays put
     const el = cells[next];
     cells.forEach(x => x.classList.remove("selected"));
@@ -2109,14 +2120,14 @@
   }
   document.addEventListener("keydown", e => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveToFile(false); return; }
-    if (viewMode !== "grid" || e.ctrlKey || e.metaKey || e.altKey) return;
+    if ((viewMode !== "grid" && viewMode !== "list") || e.ctrlKey || e.metaKey || e.altKey) return;
     // Typing must stay typing — W and D are letters in the search box — and a dialog
     // on top of the grid owns the keyboard while it is open.
     if (isTypingTarget(e.target) || document.querySelector(".modal:not(.hidden)")) return;
     const step = GRID_NAV[e.key.toLowerCase()];
     if (!step) return;
     e.preventDefault();          // arrows must move the selection, not scroll the grid
-    moveGridSelection(step[0], step[1]);
+    moveSelection(step[0], step[1]);
   });
 
   // ── Search / filter wiring ─────────────────────────────────────────────
