@@ -1537,7 +1537,6 @@
     if (x.arc) rowsHtml.push(row("Arc shot", x.arc));
     if (x.kinsect) rowsHtml.push(row("Kinsect", `${x.kinsect.name} (${x.kinsect.type}) P${x.kinsect.power}/W${x.kinsect.weight}/S${x.kinsect.speed}`));
     if (x.stats) rowsHtml.push(row("Reload / Recoil / Dev", `${x.stats.reload} / ${x.stats.recoil} / ${x.stats.deviation}`));
-    if (x.siege) rowsHtml.push(row("Siege", x.siege));
     let extraBlocks = "";
     if (x.charges) extraBlocks += `<div class="detail-section-title">Charges</div><div class="chip-list">${x.charges.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join("")}</div>`;
     if (x.coatings) extraBlocks += `<div class="detail-section-title">Coatings</div><div class="chip-list">${x.coatings.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join("")}</div>`;
@@ -1545,6 +1544,10 @@
       const rows = Object.entries(x.ammo).map(([n, caps]) => `<tr><td>${escapeHtml(n)}</td><td>${caps.map(v => v || "–").join(" / ")}</td></tr>`).join("");
       extraBlocks += `<div class="detail-section-title">Ammo</div><table class="lvl-table"><tbody>${rows}</tbody></table>`;
     }
+    // Siege is a list of {ammo, capacity}, not a string: as a stat row it stringified to
+    // [object Object] per ammo. It belongs with the other ammo blocks anyway, and reads
+    // like rapid fire — the shape is the same, bar the key name the build passes through.
+    if (x.siege && x.siege.length) extraBlocks += `<div class="detail-section-title">Siege</div><div class="chip-list">${x.siege.map(g => `<span class="chip">${escapeHtml(g.ammo)} ×${g.capacity}</span>`).join("")}</div>`;
     if (x.rapidFire) extraBlocks += `<div class="detail-section-title">Rapid fire</div><div class="chip-list">${x.rapidFire.map(r => `<span class="chip">${escapeHtml(r.ammo)} ×${r.cap}</span>`).join("")}</div>`;
     if (x.internal) extraBlocks += `<div class="detail-section-title">Internal</div><div class="chip-list">${x.internal.map(r => `<span class="chip">${escapeHtml(r.ammo)} ${r.cap}/${r.total}</span>`).join("")}</div>`;
     if (!rowsHtml.length && !extraBlocks) return "";
