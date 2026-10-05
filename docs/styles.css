@@ -9,6 +9,9 @@
   --bg:#3e3e3e; --bg1:#000; --grid-bg:#141018; --content-bg:#0e0d11; --panel-bg:#141418; --bg2:#333; --hover:#2f2f2f; --accent:#7a7a7a; --accent-hover:#9a9a9a;
   --text:#f3f3f3; --text-dim:#fff; --line:#ffffff1f; --card:#ffffff0d;
   --titlebar-overlay:rgba(0,0,0,0.18);
+  /* Rarity palette (from mhgu-editor App.css). One definition, used by the filter
+     pills at full strength and by the grid cells as a 42% tint. */
+  --rar-1:#e0e0e0; --rar-2:#c0a0dc; --rar-3:#d4cc00; --rar-4:#d87090; --rar-5:#48b448; --rar-6:#3888e8; --rar-7:#d43838; --rar-8:#20b8b8; --rar-9:#e88030; --rar-10:#ff50a0; --rar-11:#cc00ff;
   /* 8-point dark outline: keeps sidebar text readable over the panel textures */
   --text-outline:-1px -1px 0 rgba(0,0,0,.85),1px -1px 0 rgba(0,0,0,.85),-1px 1px 0 rgba(0,0,0,.85),1px 1px 0 rgba(0,0,0,.85),-1px 0 0 rgba(0,0,0,.85),1px 0 0 rgba(0,0,0,.85),0 -1px 0 rgba(0,0,0,.85),0 1px 0 rgba(0,0,0,.85);
 }
@@ -92,9 +95,27 @@ body{
 .rarity-chip{
   border:1px solid var(--line);border-radius:5px;text-align:center;font-size:11px;padding:3px 0;cursor:pointer;
   background:#ffffff10;
+  /* Filled with its own rarity. The label stays white on all eleven, which needs the
+     outline to survive the pale ones — R1 is near-white and R3 is yellow. */
+  color:#fff;font-weight:600;text-shadow:var(--text-outline);
 }
-.rarity-chip.off{opacity:.35}
+.rarity-chip[data-r="1"]{background:var(--rar-1)}
+.rarity-chip[data-r="2"]{background:var(--rar-2)}
+.rarity-chip[data-r="3"]{background:var(--rar-3)}
+.rarity-chip[data-r="4"]{background:var(--rar-4)}
+.rarity-chip[data-r="5"]{background:var(--rar-5)}
+.rarity-chip[data-r="6"]{background:var(--rar-6)}
+.rarity-chip[data-r="7"]{background:var(--rar-7)}
+.rarity-chip[data-r="8"]{background:var(--rar-8)}
+.rarity-chip[data-r="9"]{background:var(--rar-9)}
+.rarity-chip[data-r="10"]{background:var(--rar-10)}
+.rarity-chip[data-r="11"]{background:var(--rar-11)}
+/* Switched off reads as drained of its colour rather than merely dimmer. */
+.rarity-chip.off{opacity:.4;filter:saturate(.25)}
 .rarity-chip:hover{filter:brightness(1.3)}
+/* filter replaces rather than adds, so an off chip must restate its own desaturation
+   or hovering it would light the colour back up as though it were on. */
+.rarity-chip.off:hover{filter:saturate(.25) brightness(1.3)}
 
 /* Collapsible panels */
 .panel{border:1px solid var(--line);border-radius:8px;overflow:clip;background:var(--bg2);
@@ -222,18 +243,18 @@ body{
   text-shadow:0 0 2px #000,0 0 2px #000;
 }
 .cell-check.max{color:#ff2b2b;font-weight:700;font-size:10px;text-shadow:0 0 2px #000,0 0 3px #000}
-/* rarity fill overlays (from mhgu-editor App.css) */
-.box-cell.rarity-1::after  { background: rgba(224,224,224,.42); }
-.box-cell.rarity-2::after  { background: rgba(192,160,220,.42); }
-.box-cell.rarity-3::after  { background: rgba(212,204,  0,.42); }
-.box-cell.rarity-4::after  { background: rgba(216,112,144,.42); }
-.box-cell.rarity-5::after  { background: rgba( 72,180, 72,.42); }
-.box-cell.rarity-6::after  { background: rgba( 56,136,232,.42); }
-.box-cell.rarity-7::after  { background: rgba(212, 56, 56,.42); }
-.box-cell.rarity-8::after  { background: rgba( 32,184,184,.42); }
-.box-cell.rarity-9::after  { background: rgba(232,128, 48,.42); }
-.box-cell.rarity-10::after { background: rgba(255, 80,160,.42); }
-.box-cell.rarity-11::after { background: rgba(204,  0,255,.42); }
+/* rarity fill overlays — same colours as the filter pills, at 42% */
+.box-cell.rarity-1::after { background: color-mix(in srgb, var(--rar-1) 42%, transparent); }
+.box-cell.rarity-2::after { background: color-mix(in srgb, var(--rar-2) 42%, transparent); }
+.box-cell.rarity-3::after { background: color-mix(in srgb, var(--rar-3) 42%, transparent); }
+.box-cell.rarity-4::after { background: color-mix(in srgb, var(--rar-4) 42%, transparent); }
+.box-cell.rarity-5::after { background: color-mix(in srgb, var(--rar-5) 42%, transparent); }
+.box-cell.rarity-6::after { background: color-mix(in srgb, var(--rar-6) 42%, transparent); }
+.box-cell.rarity-7::after { background: color-mix(in srgb, var(--rar-7) 42%, transparent); }
+.box-cell.rarity-8::after { background: color-mix(in srgb, var(--rar-8) 42%, transparent); }
+.box-cell.rarity-9::after { background: color-mix(in srgb, var(--rar-9) 42%, transparent); }
+.box-cell.rarity-10::after { background: color-mix(in srgb, var(--rar-10) 42%, transparent); }
+.box-cell.rarity-11::after { background: color-mix(in srgb, var(--rar-11) 42%, transparent); }
 
 /* Detail panel */
 .detail-panel{
