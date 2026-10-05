@@ -203,14 +203,20 @@
   // a reload, and written into the save file so it travels with a collection.
   // localSaveEnabled is deliberately NOT here — "save in this browser" is a
   // property of this device, not of the collection.
-  const SETTING_KEYS = ["clickLevel", "ctrlRemove", "altMax", "dummy", "shiftTarget", "spendMats"];
+  const SETTING_KEYS = ["clickLevel", "ctrlRemove", "altMax", "dummy", "shiftTarget", "spendMats", "armorGender"];
   // boxSync is deliberately outside SETTING_KEYS: like localSaveEnabled it
   // describes this browser rather than the collection, so opening someone
   // else's save must not switch it for you.
+  // armorGender ("all" | "m" | "f") is which hunter the collection is for. It belongs
+  // with the save rather than the browser: it is a fact about the character being
+  // tracked, and someone keeping two saves wants it to arrive with the file.
   const settings = { clickLevel: true, ctrlRemove: true, altMax: true, dummy: false, shiftTarget: true,
-                     spendMats: true, boxSync: false };
+                     spendMats: true, armorGender: "all", boxSync: false };
+  const GENDERS = ["all", "m", "f"];
+  const SETTING_DEFAULTS = { ...settings };   // types a loaded file is checked against
   const toggleSyncs = [];   // re-sync every switch after a save is loaded
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")); } catch (e) {}
+  if (!GENDERS.includes(settings.armorGender)) settings.armorGender = "all";
   const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} };
   let viewMode = "grid";       // "grid" | "list"
   try { viewMode = localStorage.getItem("mhgu-tracker-view") || "grid"; } catch (e) {}
@@ -226,6 +232,31 @@
     const s = new Set();
     for (const e of c.entries) if (isDummy(e[1])) s.add(e[0]);
     dummyIds.set(catId(c), s);
+  }
+  // Armor is stored as separate male and female pieces (entry[5]: 0 male only,
+  // 1 female only, 2 either), so tracking one hunter leaves a few hundred pieces that
+  // hunter can never wear. Picking a gender takes those out of the lists AND out of the
+  // counts: a category that could only ever reach 88% would make its completion tier —
+  // and the icon colour that tier drives — mean nothing.
+  const genderIds = new Map();   // "a:slot" -> { m: Set(male-only ids), f: Set(female-only ids) }
+  for (const c of CATS) {
+    if (c.kind !== "a") continue;
+    const m = new Set(), f = new Set();
+    for (const e of c.entries) { if (e[5] === 0) m.add(e[0]); else if (e[5] === 1) f.add(e[0]); }
+    genderIds.set(catId(c), { m, f });
+  }
+  // The ids the current choice hides: tracking a male hunter drops the female-only gear.
+  function hiddenGenderIds(c) {
+    if (c.kind !== "a" || settings.armorGender === "all") return null;
+    const g = genderIds.get(catId(c));
+    return settings.armorGender === "m" ? g.f : g.m;
+  }
+  // Does this piece count toward its category at all? DUMMY gear only when shown, armor
+  // only when this hunter could wear it.
+  function outOfScope(c, id) {
+    if (!settings.dummy && dummyIds.get(catId(c)).has(id)) return true;
+    const hidden = hiddenGenderIds(c);
+    return !!hidden && hidden.has(id);
   }
   const statsCache = new Map();
   const materialsCache = new Map();
@@ -519,24 +550,27 @@
   // numerator and denominator, but their owned state stays in `owned` (kept, not
   // deleted) so it returns if the user re-includes them.
   function catTotal(c) {
-    const all = c.entries.length;
-    return settings.dummy ? all : all - dummyIds.get(catId(c)).size;
+    const hidden = hiddenGenderIds(c);
+    // DUMMY entries are all weapons and the gender sets are all armor, so the two can
+    // never overlap and both sizes come straight off the total.
+    return c.entries.length
+      - (settings.dummy ? 0 : dummyIds.get(catId(c)).size)
+      - (hidden ? hidden.size : 0);
   }
   function catOwnedCount(c) {
     const m = owned.get(catId(c));
-    const dset = dummyIds.get(catId(c));
-    if (settings.dummy || !dset.size) return m.size;
-    let n = 0; for (const id of m.keys()) if (!dset.has(id)) n++;
+    const dset = dummyIds.get(catId(c)), hidden = hiddenGenderIds(c);
+    if ((settings.dummy || !dset.size) && !hidden) return m.size;
+    let n = 0; for (const id of m.keys()) if (!outOfScope(c, id)) n++;
     return n;
   }
   // Count owned entries that are "maxed": weapons at their top level; entries with
   // no levels (armor, palico, no-stat weapons) count once owned. Honours DUMMY filter.
   function catMaxedCount(c) {
     const m = owned.get(catId(c));
-    const dset = dummyIds.get(catId(c));
     let n = 0;
     for (const [id, lv] of m) {
-      if (!settings.dummy && dset.has(id)) continue;
+      if (outOfScope(c, id)) continue;
       const max = maxLevelOf(c, id);
       if (max === 0 || lv >= max) n++;
     }
@@ -653,6 +687,10 @@
   }
   function passesFilters(it) {
     if (!settings.dummy && isDummy(it.name)) return false;
+    // Gender: pieces the tracked hunter cannot wear are hidden outright. They are out
+    // of the counts too — see genderIds — so this is a scope, not just a view.
+    if (it.kind === "a" && settings.armorGender !== "all"
+        && it.gender !== 2 && it.gender !== (settings.armorGender === "m" ? 0 : 1)) return false;
     // Armor-type filter: "Both" (A) pieces always pass; applies to armor only.
     if (it.kind === "a" && filters.armorClass !== "all" && it.armorClass !== "A" && it.armorClass !== filters.armorClass) return false;
     if (filters.text && !filters.searchAll) {
@@ -1944,7 +1982,14 @@
     // work; obj.settings then wins where both are present.
     if (typeof obj.showDummy === "boolean") settings.dummy = obj.showDummy;
     if (obj.settings && typeof obj.settings === "object")
-      for (const k of SETTING_KEYS) if (typeof obj.settings[k] === "boolean") settings[k] = obj.settings[k];
+      for (const k of SETTING_KEYS) {
+        // Checked against the default's type: settings were all booleans once, and a
+        // boolean-only test would silently drop the string ones.
+        const v = obj.settings[k];
+        if (typeof v !== typeof SETTING_DEFAULTS[k]) continue;
+        if (k === "armorGender" && !GENDERS.includes(v)) continue;
+        settings[k] = v;
+      }
     saveSettings();                      // an imported file's settings stick in this browser
     for (const sync of toggleSyncs) sync();
     updateProgress();
@@ -2149,6 +2194,18 @@
   $("defSelect").addEventListener("change", function () { filters.def = this.value; renderGrid(); });
   document.querySelectorAll('input[name="armorClassFilter"]').forEach(r =>
     r.addEventListener("change", function () { if (this.checked) { filters.armorClass = this.value; renderGrid(); } }));
+  const armorGenderRadios = [...document.querySelectorAll('input[name="armorGenderFilter"]')];
+  const syncArmorGender = () => armorGenderRadios.forEach(r => { r.checked = r.value === settings.armorGender; });
+  armorGenderRadios.forEach(r => r.addEventListener("change", function () {
+    if (!this.checked) return;
+    settings.armorGender = this.value;
+    saveSettings();
+    markDirty();              // it rides along in the save, like the other settings
+    updateProgress();         // totals, sidebar fractions and the tier colouring each icon
+    renderGrid();
+  }));
+  syncArmorGender();
+  toggleSyncs.push(syncArmorGender);   // a loaded save brings its own hunter
   // Totals and Checklist aren't scoped to a category, so the header shouldn't claim one.
   // Called from renderGrid as well as setView: on a fresh load the view is restored from
   // localStorage after selectCategory has already written the category's name there.
