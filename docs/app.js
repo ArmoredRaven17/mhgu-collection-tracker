@@ -286,6 +286,18 @@
     try { return await p; } catch (e) { materialsCache.delete(file); return null; }
   }
 
+  // Hunting horn songbooks, keyed by the horn's own notes. One small file for every
+  // horn there is, so it is fetched once on the first horn opened and kept.
+  let songsPromise = null;
+  function loadSongs() {
+    if (!songsPromise) {
+      songsPromise = fetch(`data/hh_songs.json?v=${DATA_VERSION}`)
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .catch(() => { songsPromise = null; return null; });
+    }
+    return songsPromise;
+  }
+
   // ── Dirty tracking ─────────────────────────────────────────────────────
   function markDirty() {
     if (!dirty) { dirty = true; $("dirtyDot").classList.remove("hidden"); document.title = "● MHGU Collection Tracker"; }
@@ -1500,6 +1512,7 @@
       <button id="detailOwnedBtn" class="detail-owned-btn ${on ? "is-owned" : ""}">${ownedBtnLabel(c, id)}</button>
       <button id="detailTargetBtn" class="detail-target-btn ${isTargeted(c, id) ? "is-target" : ""}">${targetBtnLabel(c, id)}</button>
       <div id="detailStats"><div class="detail-note">Loading stats…</div></div>
+      <div id="detailSongs"></div>
       <div id="detailMaterials"></div>`;
     $("detailOwnedBtn").addEventListener("click", () => toggleOwned(c, id));
     $("detailTargetBtn").addEventListener("click", () => toggleTarget(c, id));
@@ -1514,6 +1527,13 @@
       else body.innerHTML = renderPalicoDetail(c.key, data, id);
       wireSharpToggle();
       refreshDetailOwned(c, id);   // highlight the owned level row, if any
+      if (c.key === "hunting_horn") {
+        const notes = ((data.byId[String(id)] || []).slice(-1)[0] || {}).x;
+        loadSongs().then(songs => {
+          if (selectedId !== id || !$("detailSongs")) return;   // selection moved on
+          $("detailSongs").innerHTML = songsHtml(notes && notes.notes, songs);
+        });
+      }
     } catch (e) {
       $("detailStats").innerHTML = '<div class="detail-note">Stats unavailable for this item.</div>';
     }
@@ -1566,6 +1586,34 @@
       <div class="lvl-hint">Click the level you currently have.</div>${toggle}
       <table class="lvl-table"><thead><tr><th class="lvl-own"></th><th>Lv</th><th>Raw</th><th>Aff</th><th>Element</th><th>Slots</th>${anySharp ? "<th>Sharp</th>" : ""}</tr></thead>
       <tbody>${rows}</tbody></table>${extras}`;
+  }
+  // mhgu.db keys the songbook by the horn's three notes as letters, and spells each
+  // song in the same letters. Both ends are our note names, so this is the only place
+  // the letters appear.
+  const NOTE_LETTER = { White: "W", Purple: "P", Red: "R", Blue: "B",
+                        Green: "G", Yellow: "Y", "Sky Blue": "C", Orange: "O" };
+  const LETTER_NOTE = Object.fromEntries(Object.entries(NOTE_LETTER).map(([n, l]) => [l, n]));
+  const noteDots = seq => [...String(seq)].map(l => {
+    const n = LETTER_NOTE[l];
+    return n ? `<span class="note-dot n-${l}" title="${escapeHtml(n)}"></span>`
+             : escapeHtml(l);
+  }).join("");
+  // The songbook follows from the notes alone, so every horn sharing a note set shares it.
+  function songsHtml(notes, songs) {
+    if (!songs || !notes || notes.length !== 3) return "";
+    const list = songs[notes.map(n => NOTE_LETTER[n] || "?").join("")];
+    if (!list || !list.length) return "";
+    return `<div class="detail-section-title">Songs</div>
+      <table class="lvl-table song-table"><thead><tr><th>Song</th><th>Melody</th><th class="num">Sec</th></tr></thead>
+      <tbody>${list.map(m => `<tr>
+        <td class="song-seq">${noteDots(m.s)}</td>
+        <td><div class="song-name">${escapeHtml(m.n)}</div>${
+          m.e.map(e => `<div class="song-fx">${escapeHtml(e)}</div>`).join("")}</td>
+        <td class="num song-dur">${escapeHtml(m.d)}${
+          m.x ? `<div class="song-fx">+${escapeHtml(m.x)}</div>` : ""}</td>
+      </tr>`).join("")}</tbody></table>
+      <div class="detail-note song-note">Seconds are the base effect, then the same with Horn Maestro
+        in brackets; +n is what an encore adds.</div>`;
   }
   function renderExtras(x) {
     if (!x) return "";

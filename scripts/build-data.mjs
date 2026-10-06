@@ -590,6 +590,29 @@ if (!db) {
     writeFileSync(join(OUT_MATERIALS, 'palico_armor.json'), JSON.stringify(out));
   }
 }
+// ── Hunting horn songs ──────────────────────────────────────────────────
+// Keyed by the horn's own three notes as mhgu.db letters (W P R B G Y C O), which is
+// how horn_melodies is keyed; `song` is the sequence to play in the same letters. A
+// horn's notes decide its whole songbook, so this is 50 combos rather than 110 horns.
+// Cross-checked against the dump: the game's fueMusicData.fmt holds 50 note sets of
+// three ids, and under the id->letter mappings consistent with it those 50 sets are
+// exactly these 50 combos — so the combos themselves come out of the game, even though
+// the melody names and effects (English text the dump does not contain) come from the DB.
+if (db) {
+  const songRows = db.prepare(
+    'SELECT notes, song, name, effect1, effect2, duration, extension FROM horn_melodies ORDER BY _id').all();
+  const songs = {};
+  for (const r of songRows) {
+    (songs[r.notes] = songs[r.notes] || []).push({
+      s: r.song, n: fixMojibake(r.name),
+      e: [fixMojibake(r.effect1), fixMojibake(r.effect2)].filter(x => x && x !== '-'),
+      d: r.duration, x: r.extension,
+    });
+  }
+  writeFileSync(join(OUT_DATA, 'hh_songs.json'), JSON.stringify(songs));
+  console.log(`  hh_songs.json: ${Object.keys(songs).length} note combos, ${songRows.length} melodies`);
+}
+
 if (db) db.close();
 
 // ── Icons ──────────────────────────────────────────────────────────────
