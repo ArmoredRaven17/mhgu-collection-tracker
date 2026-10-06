@@ -537,6 +537,7 @@
       if (cell) updateCellTarget(cell, isTargeted(c, id));
     }
     if (selectedId === id && current === c) refreshDetailTarget(c, id);
+    updateCatStats();   // ownership reaches the strip via updateProgress; targeting does not
   }
   function updateCellTarget(cell, on) {
     cell.classList.toggle("targeted", on);
@@ -620,6 +621,7 @@
     // selected category's — marking a piece owned must not stamp a count over it.
     if (viewMode === "totals" || viewMode === "checklist") updateViewHeader();
     else $("catCount").textContent = `${n} / ${d} owned`;
+    updateCatStats();
   }
 
   // ── Sidebar ────────────────────────────────────────────────────────────
@@ -2266,6 +2268,25 @@
   // Totals and Checklist aren't scoped to a category, so the header shouldn't claim one.
   // Called from renderGrid as well as setView: on a fresh load the view is restored from
   // localStorage after selectCategory has already written the category's name there.
+  // The category at a glance, in the strip beside its name. Every number is scoped the
+  // same way the progress bar is — DUMMY gear and the gender you are not tracking are
+  // out of all of them — so these cannot disagree with the fraction next to them.
+  function updateCatStats() {
+    const el = $("catStats");
+    if (!el) return;
+    // Totals and Checklist span every category, so a per-category breakdown would be lying.
+    if (!current || viewMode === "totals" || viewMode === "checklist") { el.innerHTML = ""; return; }
+    const total = catTotal(current), owned = catOwnedCount(current), maxed = catMaxedCount(current);
+    let targeted = 0;
+    for (const id of targets.get(catId(current)).keys()) if (!outOfScope(current, id)) targeted++;
+    const stat = (cls, n, label) =>
+      `<span class="cat-stat ${cls}${n ? "" : " zero"}"><b>${fmtNum(n)}</b><span>${label}</span></span>`;
+    // No "owned" chip: the fraction beside the title already says that, and four chips
+    // wrapped onto a second line and made the header taller.
+    el.innerHTML = stat("maxed", maxed, "maxed")
+      + stat("target", targeted, "on checklist")
+      + stat("left", Math.max(0, total - owned), "to go");
+  }
   function updateViewHeader() {
     if (viewMode === "totals") { $("catTitle").textContent = "All categories"; $("catCount").textContent = ""; }
     else if (viewMode === "checklist") {
@@ -2273,6 +2294,7 @@
       $("catTitle").textContent = "Checklist";
       $("catCount").textContent = `${n} target${n === 1 ? "" : "s"}`;
     } else updateSearchTitle();
+    updateCatStats();
   }
   function setView(v) {
     viewMode = (v === "list" || v === "materials" || v === "routes" || v === "totals" || v === "checklist") ? v : "grid";
