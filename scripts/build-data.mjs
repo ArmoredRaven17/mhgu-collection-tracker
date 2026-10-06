@@ -144,7 +144,13 @@ const PHIALS     = ['Impact', 'Element', 'Power', 'Dragon', 'Exhaust', 'Poison',
 const SHELLS     = ['Normal', 'Long', 'Wide'];
 const KINSECTS   = ['Cutting', 'Blunt'];
 const ARCS       = ['Focus', 'Wide', 'Blast'];
-const NOTES      = ['White', 'Cyan', 'Red', 'Purple', 'Yellow', 'Green', 'Sky Blue', 'Orange'];
+// The editor's data calls the game's BLUE note "Cyan" — mhgu.db's own horn_notes
+// letters settle it: B (blue) is the one labelled Cyan on 293 horn levels, and C
+// (cyan) is the one labelled Sky Blue on 251. Renamed on the way in so the stats
+// files and the note mask below both carry the name the game shows.
+const NOTE_RENAME = { Cyan: 'Blue' };
+const noteName   = n => NOTE_RENAME[n] || n;
+const NOTES      = ['White', 'Blue', 'Red', 'Purple', 'Yellow', 'Green', 'Sky Blue', 'Orange'];
 const RELOADS    = ['V. Slow', 'Bel.Avg', 'Average', 'Abv.Avg', 'V. Fast'];     // slow → fast
 const RECOILS    = ['Low', 'Some', 'Avg.', 'High'];                             // low → high
 const DEVIATIONS = ['(None)', 'L Mild', 'R Mild', 'LR Mild', 'L Severe', 'R Severe', 'LR Severe'];
@@ -208,7 +214,7 @@ function classExtras(slug, l) {
   const x = {};
   switch (slug) {
     case 'hunting_horn':
-      if (l.notes) x.notes = l.notes;
+      if (l.notes) x.notes = l.notes.map(noteName);
       break;
     case 'gunlance':
       if (l.shell) x.shell = `${l.shell.type} Lv${l.shell.level}`;

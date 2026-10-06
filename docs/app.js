@@ -8,7 +8,7 @@
   // Bump whenever docs/data/ is regenerated. The JSON files are fetched at runtime,
   // so without this a browser holding a cached copy runs new code against old data —
   // which fails silently, as wrong numbers rather than an error.
-  const DATA_VERSION = "2";
+  const DATA_VERSION = "3";
   const SAVE_APP = "mhgu-collection-tracker";
   const SAVE_VERSION = 3;   // v2 adds per-item upgrade levels; v3 adds the checklist
   const AUTOSAVE_KEY = "mhgu-tracker-autosave";
@@ -1221,7 +1221,9 @@
   // ordered lists build-data.mjs used, so these arrays are a wire format: append,
   // never reorder. `k` is the short key stored in catalog entry[9].
   const SHARPNESS  = ["Red", "Orange", "Yellow", "Green", "Blue", "White", "Purple"];
-  const NOTE_NAMES = ["White", "Cyan", "Red", "Purple", "Yellow", "Green", "Sky Blue", "Orange"];
+  // Index order must match NOTES in scripts/build-data.mjs. "Blue" is mhgu.db's B note,
+  // which the source data mislabelled Cyan; Sky Blue is its C.
+  const NOTE_NAMES = ["White", "Blue", "Red", "Purple", "Yellow", "Green", "Sky Blue", "Orange"];
   const GUNS = ["light_bowgun", "heavy_bowgun"];
   const MELEE = ["great_sword", "long_sword", "sword_and_shield", "dual_blades", "hammer",
     "hunting_horn", "lance", "gunlance", "switch_axe", "charge_blade", "insect_glaive"];
