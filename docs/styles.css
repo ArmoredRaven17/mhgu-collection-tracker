@@ -415,8 +415,11 @@ kbd{display:inline-block;background:var(--bg2);border:1px solid var(--line);
 .song-table td{vertical-align:top;padding-top:5px;padding-bottom:5px}
 .song-seq{white-space:nowrap;padding-top:7px!important}
 /* The game's note glyph, lifted from its common icon atlas and tinted per note.
-   image-rendering keeps the 32px sprite crisp rather than smearing it. */
-.note-ico{width:17px;height:17px;margin-right:1px;vertical-align:middle;
+   16px, not 17: the sprite is 32px and only an exact halving maps every output pixel to
+   the same number of source pixels. At 17 the ratio lands between source pixels, so some
+   columns double and others do not, and the black outline comes out uneven however the
+   scaling is hinted. */
+.note-ico{width:16px;height:16px;margin-right:1px;vertical-align:middle;
   image-rendering:pixelated}
 /* The horn's own three notes. Same trick as the rarity filters: the label stays white
    on every fill, which the outline has to carry over White and Yellow. */
