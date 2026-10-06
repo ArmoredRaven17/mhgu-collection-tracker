@@ -32,6 +32,10 @@ TEX_HASH = 0x241f5deb
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'docs', 'assets', 'notes')
 
 # Must match --note-* in docs/styles.css and NOTE_LETTER in docs/app.js.
+# Independently confirmed: mhgu-weapon-trees reached the same eight values, channel for
+# channel, from its own hand-authored note SVGs. Two separate derivations agreeing is the
+# best evidence available for the colours, since the ROM never names or stores them —
+# it ships one white glyph and tints it in code.
 NOTES = {
     'W': (0xf0, 0xf4, 0xf0), 'P': (0xcc, 0x44, 0xff), 'R': (0xff, 0x66, 0x66),
     'B': (0x00, 0x99, 0xff), 'G': (0x3c, 0xb0, 0x5d), 'Y': (0xe6, 0xcb, 0x00),

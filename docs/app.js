@@ -1589,7 +1589,8 @@
   }
   // mhgu.db keys the songbook by the horn's three notes as letters, and spells each
   // song in the same letters. Both ends are our note names, so this is the only place
-  // the letters appear.
+  // the letters appear. Note the deliberate departure: letter C stands for cyan, and we
+  // show it as "Sky Blue" — with B named Blue, the pale one reads better that way.
   const NOTE_LETTER = { White: "W", Purple: "P", Red: "R", Blue: "B",
                         Green: "G", Yellow: "Y", "Sky Blue": "C", Orange: "O" };
   const LETTER_NOTE = Object.fromEntries(Object.entries(NOTE_LETTER).map(([n, l]) => [l, n]));
