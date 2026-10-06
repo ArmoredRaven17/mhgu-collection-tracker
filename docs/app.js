@@ -1619,7 +1619,7 @@
     if (!x) return "";
     let h = '<div class="detail-section-title">Details (final form)</div>';
     const rowsHtml = [];
-    if (x.notes) rowsHtml.push(row("Notes", x.notes.join(", ")));
+    if (x.notes) rowsHtml.push(rawRow("Notes", notePills(x.notes)));
     if (x.shell) rowsHtml.push(row("Shelling", x.shell));
     if (x.phial) rowsHtml.push(row("Phial", x.phial));
     if (x.arc) rowsHtml.push(row("Arc shot", x.arc));
@@ -1641,7 +1641,11 @@
     if (!rowsHtml.length && !extraBlocks) return "";
     return h + rowsHtml.join("") + extraBlocks;
   }
-  const row = (k, v) => `<div class="stat-row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(v)}</span></div>`;
+  const row = (k, v) => rawRow(k, escapeHtml(v));
+  const rawRow = (k, html) => `<div class="stat-row"><span class="k">${escapeHtml(k)}</span><span class="v">${html}</span></div>`;
+  // Each note in its own colour, named rather than guessed at from a dot.
+  const notePills = notes => `<span class="note-pills">${notes.map(n =>
+    `<span class="note-pill n-${NOTE_LETTER[n] || "X"}">${escapeHtml(n)}</span>`).join("")}</span>`;
 
   function resGridHtml(res) {
     return `<div class="detail-section-title">Resistances</div><div class="res-grid">
