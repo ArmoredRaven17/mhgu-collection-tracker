@@ -1593,9 +1593,11 @@
   const NOTE_LETTER = { White: "W", Purple: "P", Red: "R", Blue: "B",
                         Green: "G", Yellow: "Y", "Sky Blue": "C", Orange: "O" };
   const LETTER_NOTE = Object.fromEntries(Object.entries(NOTE_LETTER).map(([n, l]) => [l, n]));
+  // The game's own note glyph, one sprite tinted per note the way it tints subspecies
+  // monster icons — see scripts/extract-note-icons.py.
   const noteDots = seq => [...String(seq)].map(l => {
     const n = LETTER_NOTE[l];
-    return n ? `<span class="note-dot n-${l}" title="${escapeHtml(n)}"></span>`
+    return n ? `<img class="note-ico" src="assets/notes/note-${l}.png" alt="${escapeHtml(n)}" title="${escapeHtml(n)}">`
              : escapeHtml(l);
   }).join("");
   // The songbook follows from the notes alone, so every horn sharing a note set shares it.
