@@ -2245,7 +2245,12 @@
   });
   $("searchAll").addEventListener("change", function () { filters.searchAll = this.checked; updateLevelFilterAvailability(); renderGrid(); updateSearchTitle(); });
   document.querySelectorAll('input[name="ownedFilter"]').forEach(r =>
-    r.addEventListener("change", function () { if (this.checked) { filters.owned = this.value; renderGrid(); } }));
+    r.addEventListener("change", function () {
+      if (!this.checked) return;
+      filters.owned = this.value;
+      renderGrid();
+      updateCatStats();          // keep the chip's pressed state in step with the radio
+    }));
   $("sortSelect").addEventListener("change", function () { filters.sort = this.value; renderGrid(); });
   $("elementSelect").addEventListener("change", function () { filters.element = this.value; renderGrid(); });
   $("affSelect").addEventListener("change", function () { filters.aff = this.value; renderGrid(); });
@@ -2279,14 +2284,32 @@
     const total = catTotal(current), owned = catOwnedCount(current), maxed = catMaxedCount(current);
     let targeted = 0;
     for (const id of targets.get(catId(current)).keys()) if (!outOfScope(current, id)) targeted++;
-    const stat = (cls, n, label) =>
-      `<span class="cat-stat ${cls}${n ? "" : " zero"}"><b>${fmtNum(n)}</b><span>${label}</span></span>`;
+    // Each chip is the Show filter that isolates what it counts, so the number and the
+    // way to see those pieces are the same control. Clicking the active one clears it.
+    const stat = (cls, n, label, filter) =>
+      `<button type="button" class="cat-stat ${cls}${n ? "" : " zero"}${
+        filters.owned === filter ? " active" : ""}" data-filter="${filter}"
+        aria-pressed="${filters.owned === filter}"
+        title="${filters.owned === filter ? "Showing only these — click to clear" : "Show only these"}"
+        ><b>${fmtNum(n)}</b><span>${label}</span></button>`;
     // No "owned" chip: the fraction beside the title already says that, and four chips
     // wrapped onto a second line and made the header taller.
-    el.innerHTML = stat("maxed", maxed, "maxed")
-      + stat("target", targeted, "on checklist")
-      + stat("left", Math.max(0, total - owned), "to go");
+    el.innerHTML = stat("maxed", maxed, "maxed", "maxed")
+      + stat("target", targeted, "on checklist", "target")
+      + stat("left", Math.max(0, total - owned), "to go", "missing");
   }
+  $("catStats").addEventListener("click", ev => {
+    const chip = ev.target.closest(".cat-stat");
+    if (!chip) return;
+    // Pressing the filter already in force turns it off, so a chip never becomes a
+    // one-way trip into a filtered view.
+    const want = chip.classList.contains("active") ? "all" : chip.dataset.filter;
+    filters.owned = want;
+    const radio = document.querySelector(`input[name="ownedFilter"][value="${want}"]`);
+    if (radio) radio.checked = true;      // the sidebar is the same setting, so keep it honest
+    renderGrid();
+    updateCatStats();
+  });
   function updateViewHeader() {
     if (viewMode === "totals") { $("catTitle").textContent = "All categories"; $("catCount").textContent = ""; }
     else if (viewMode === "checklist") {
