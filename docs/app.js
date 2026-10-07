@@ -1660,8 +1660,7 @@
         const loadUp = /!$/.test(raw), shot = String(raw).replace(/!$/, "");
         const col = shotCol(shot);
         return `<li><span class="charge-shot"${col ? ` style="color:${col}"` : ""}>${
-          shot ? escapeHtml(shot) : "<span class=\"charge-unknown\">not recorded</span>"
-        }</span>${loadUp ? '<span class="lu-tag">Load Up</span>' : ""}</li>`;
+          escapeHtml(shot)}</span>${loadUp ? '<span class="lu-tag">Load Up</span>' : ""}</li>`;
       }).join("")}</ol>`;
     if (x.coatings) extraBlocks += `<div class="detail-section-title">Coatings</div><div class="chip-list">${
       x.coatings.map(c => {

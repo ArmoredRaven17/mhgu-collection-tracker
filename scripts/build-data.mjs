@@ -231,11 +231,11 @@ function classExtras(slug, l) {
       break;
     case 'bow':
       if (l.arcShot) x.arc = l.arcShot;
-      // 18 charges across two bow trees are {level:4, shot:null, requiresLoadUp:true} — a
-      // fourth charge the bow only gains with Load Up, whose type the source never records.
-      // Without the guard those stringified to the literal "null!".
+      // Every bow level carries four charge slots, and a slot with no shot type means the
+      // bow has no charge there — four trees (Shalya, Seditious Arrow, Worn, Akantor) stop
+      // at three across 18 levels. Dropped rather than shown as a blank fourth charge.
       if (Array.isArray(l.charges))
-        x.charges = l.charges.map(c => (c.shot || '') + (c.requiresLoadUp ? '!' : ''));
+        x.charges = l.charges.filter(c => c.shot).map(c => c.shot + (c.requiresLoadUp ? '!' : ''));
       if (Array.isArray(l.coatings)) x.coatings = l.coatings.filter(c => c.usable).map(c => c.name);
       break;
     case 'light_bowgun':
