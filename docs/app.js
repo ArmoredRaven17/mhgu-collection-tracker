@@ -1649,13 +1649,19 @@
   // #9cdef8 but is 36.5 away from it in RGB — close enough to pass for grounded, which
   // is exactly why it is written down here.)
   //
-  // The ROM does hold a phial table, but it is the burst VFX palette rather than UI
-  // colour — the game never tints phial text — and it is Switch Axe only, so it has
-  // nothing for Impact and stores no colour for Dragon. Its Poison is blue-violet
-  // #6428ff, which contradicts the coating purple used for Poison everywhere else here.
-  // Decoded from mhgu-armor-viewer (effects/w08-shells.json, each entry a little-endian
-  // u32 of R G B A) should it ever be wanted: Power #ff1400, Element #29c774,
-  // Paralysis #e8bb00, Exhaust #366bff, Poison #6428ff.
+  // None of this is a restoration: the game does not tint phial text, any more than it
+  // tints shot types or shelling. The colouring is this app's, so the test is whether a
+  // colour reads well beside its neighbours, not where it came from.
+  //
+  // For reference rather than as a target, mhgu-armor-viewer documents a phial palette it
+  // describes as the game's burst-effect colours (effects/w08-shells.json indexed by
+  // PHIAL_PALETTE_ENTRY, each entry a little-endian u32 of R G B A — a big-endian read
+  // gives itself away with alphas of 41 and 232 instead of 255): Power #ff1400,
+  // Element #29c774, Paralysis #e8bb00, Exhaust #366bff, Poison #6428ff. That decode is
+  // checked; its ROM provenance is that repo's claim, not something verified here. Being
+  // effect colours they are poor candidates for stat text anyway, the table is Switch Axe
+  // only — nothing for Impact, no colour at all for Dragon — and its blue-violet Poison
+  // would clash with the purple this app gives Poison everywhere else.
   const PHIAL_COL = {
     Impact: "#b9c2cc", Power: "#de4c5a", Element: "#7fd4c4", Dragon: "#b48aff",
     Poison: "#c6a3ce", Paralysis: "#f8cf63", Exhaust: "#9cbafe",
