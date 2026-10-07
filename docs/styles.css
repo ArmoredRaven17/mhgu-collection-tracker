@@ -182,6 +182,11 @@ body{
 /* Category header (content) */
 .cat-header{flex-shrink:0;margin-bottom:10px}
 .cat-header-top{display:flex;align-items:center;gap:10px}
+/* The name gives way first when the column is too narrow for everything — it ellipsises
+   rather than shoving the view buttons off the edge. The chips never shrink, so what
+   fitCatStats measures of them is their true width and not a clipped one. */
+.cat-header-top>h2{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cat-count{flex:0 0 auto}
 .view-toggle{margin-left:auto;display:flex;gap:2px;background:#ffffff10;border:1px solid var(--line);border-radius:7px;padding:2px}
 .view-toggle button{background:transparent;border:none;color:var(--text);cursor:pointer;font-size:15px;line-height:1;padding:4px 9px;border-radius:5px}
 .view-toggle button:hover{background:#ffffff14}
@@ -190,7 +195,12 @@ body{
 .cat-count{font-size:13px;opacity:.8}
 /* Fills the gap that sat between the category count and the view buttons — the one
    genuinely empty strip in this column, and it widens with the window. */
-.cat-stats{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
+/* Nothing here shrinks. A shrinking .cat-stats clipped a chip down the middle, which
+   read as the view buttons covering it. It is sized by what fits instead — fitCatStats
+   in app.js hides from the right until the row clears the buttons. */
+.cat-stats{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.cat-stats.compact .cat-stat span{display:none}
+.cat-stats.compact .cat-stat{padding:2px 6px}
 .cat-stat{display:inline-flex;align-items:baseline;gap:4px;font-size:11.5px;
   border:1px solid var(--line);border-radius:6px;padding:2px 8px;background:#ffffff0a;
   white-space:nowrap;flex:0 0 auto;color:inherit;font-family:inherit;cursor:pointer}
@@ -211,17 +221,10 @@ body{
    name with its count ~150px, plus gaps. Least useful first — "on checklist" is also on
    the sidebar filter, "to go" is the fraction's complement, "maxed" is the only one that
    says something the header does not. */
-/* Thresholds are content-box widths — what a container query measures — so they are
-   the column's own width less its 32px of padding.
-   The labels go first and the numbers stay: three bare counts take about 110px where
-   the labelled chips take 200, and the tooltip still says which is which. Only after
-   that do whole chips drop, least useful first — "on checklist" is also a sidebar
-   filter, "to go" is the fraction's complement, "maxed" says something nothing else
-   in the header does. */
-@container (max-width:600px){ .cat-stat span{display:none} .cat-stat{padding:2px 6px} }
-@container (max-width:500px){ .cat-stat.target{display:none} }
-@container (max-width:460px){ .cat-stat.left{display:none} }
-@container (max-width:420px){ .cat-stats{display:none} }
+/* No width thresholds here on purpose. They cannot know how wide the category name and
+   its count happen to be — "Sword & Shield 135 / 136 owned" is far wider than "Bow 0 / 107
+   owned" — so a fixed breakpoint either clipped a chip or dropped one that still fitted.
+   fitCatStats measures the row instead. */
 .progress-bar{height:7px;background:#ffffff17;border-radius:4px;margin-top:8px;overflow:hidden}
 .progress-fill{height:100%;width:0;background:var(--accent-hover);transition:width .2s}
 

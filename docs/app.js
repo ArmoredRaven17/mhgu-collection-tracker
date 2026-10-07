@@ -2286,17 +2286,48 @@
     for (const id of targets.get(catId(current)).keys()) if (!outOfScope(current, id)) targeted++;
     // Each chip is the Show filter that isolates what it counts, so the number and the
     // way to see those pieces are the same control. Clicking the active one clears it.
-    const stat = (cls, n, label, filter) =>
+    const stat = (cls, n, label, filter, action) =>
       `<button type="button" class="cat-stat ${cls}${n ? "" : " zero"}${
         filters.owned === filter ? " active" : ""}" data-filter="${filter}"
         aria-pressed="${filters.owned === filter}"
-        title="${fmtNum(n)} ${label} — ${filters.owned === filter ? "showing only these, click to clear" : "click to show only these"}"
+        title="${fmtNum(n)} ${label} — ${filters.owned === filter ? "shown, click to clear" : action}"
         ><b>${fmtNum(n)}</b><span>${label}</span></button>`;
     // No "owned" chip: the fraction beside the title already says that, and four chips
     // wrapped onto a second line and made the header taller.
-    el.innerHTML = stat("maxed", maxed, "maxed", "maxed")
-      + stat("target", targeted, "on checklist", "target")
-      + stat("left", Math.max(0, total - owned), "to go", "missing");
+    //
+    // Maxed is the odd one out: it filters to what is NOT maxed. Seeing the 106 you have
+    // finished tells you nothing, while the one you have not is the whole reason to look.
+    el.innerHTML = stat("maxed", maxed, "maxed", "partial", "click for the ones that are not")
+      + stat("target", targeted, "on checklist", "target", "click to show only these")
+      + stat("left", Math.max(0, total - owned), "to go", "missing", "click to show only these");
+    fitCatStats();   // the numbers just changed width, so re-fit before anything paints
+  }
+  // Hide from the right until the chips clear the view buttons. Measured rather than
+  // guessed at: the room left over depends on the category's name and its count, which
+  // no width breakpoint can see. Labels go first — three bare numbers take about half
+  // the width of the labelled chips and the tooltip still names each — then whole chips,
+  // least useful first: "on checklist" is also a sidebar filter and "to go" is the
+  // fraction's complement, while "maxed" says what nothing else in the header does.
+  const CHIP_DROP_ORDER = ["target", "missing"];
+  function fitCatStats() {
+    const wrap = $("catStats"), tog = $("viewToggle"), row = document.querySelector(".cat-header-top");
+    if (!wrap || !tog || !row || !wrap.children.length) return;
+    wrap.style.display = "";
+    wrap.classList.remove("compact");
+    for (const chip of wrap.children) chip.hidden = false;
+    // Measured against the row's own right edge less the buttons, so it holds even when
+    // the overflow it is detecting would have pushed those buttons out of view.
+    const limit = () => row.getBoundingClientRect().right - tog.getBoundingClientRect().width - 12;
+    const fits = () => wrap.getBoundingClientRect().right <= limit();
+    if (fits()) return;
+    wrap.classList.add("compact");
+    if (fits()) return;
+    for (const f of CHIP_DROP_ORDER) {
+      const chip = wrap.querySelector(`.cat-stat[data-filter="${f}"]`);
+      if (chip) chip.hidden = true;
+      if (fits()) return;
+    }
+    wrap.style.display = "none";
   }
   $("catStats").addEventListener("click", ev => {
     const chip = ev.target.closest(".cat-stat");
@@ -2392,11 +2423,20 @@
   // describes this screen, like the theme and the chosen view, not the collection.
   const DETAIL_W_KEY = "mhgu-tracker-detail-width";
   const DETAIL_W_DEFAULT = 340, DETAIL_W_MIN = 240;
-  // Leave at least this much for the grid, so the panel can never swallow the window.
-  const detailWidthMax = () => Math.max(DETAIL_W_MIN, Math.min(760, window.innerWidth - 420));
+  // Leave the middle column enough to keep its own header intact: the category name, the
+  // count and the view buttons need about 380px between them, and below that the buttons
+  // get shoved past the edge. Measured off .content-inner so the sidebar's width is
+  // already accounted for rather than assumed.
+  const GRID_COLUMN_MIN = 383 + 7;      // header's needs, plus the drag handle
+  function detailWidthMax() {
+    const inner = document.querySelector(".content-inner");
+    const avail = inner ? inner.getBoundingClientRect().width : window.innerWidth;
+    return Math.max(DETAIL_W_MIN, Math.min(760, avail - GRID_COLUMN_MIN));
+  }
   function setDetailWidth(px, persist) {
     const w = Math.round(Math.max(DETAIL_W_MIN, Math.min(detailWidthMax(), px)));
     document.documentElement.style.setProperty("--detail-w", w + "px");
+    fitCatStats();                     // the middle column just changed width
     const bar = $("detailResizer");
     if (bar) bar.setAttribute("aria-valuenow", String(w));
     if (persist) { try { localStorage.setItem(DETAIL_W_KEY, String(w)); } catch (e) {} }
@@ -2440,6 +2480,7 @@
     });
     // A window narrow enough to breach the clamp pulls the panel back within it.
     window.addEventListener("resize", () => {
+      fitCatStats();
       if (getComputedStyle(bar).display === "none") return;   // stacked: nothing to clamp
       setDetailWidth(panel.getBoundingClientRect().width, false);
     });
