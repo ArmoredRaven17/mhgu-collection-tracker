@@ -463,6 +463,8 @@ kbd{display:inline-block;background:var(--bg2);border:1px solid var(--line);
   .kb-list{grid-template-columns:1fr;gap:2px}
   .kb-list dd{margin-bottom:8px}
 }
+.phial-val{opacity:.75;font-variant-numeric:tabular-nums}
+
 /* Bow charges and coatings. */
 .charge-list{list-style:decimal;margin:4px 0 0;padding-left:22px;font-size:12.5px}
 .charge-list li{line-height:1.7;padding-left:2px}

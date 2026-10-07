@@ -1642,6 +1642,21 @@
     return `rgb(${pin.map(p => (p ? 255 : off)).join(",")})`;
   }
   const tint = (col, txt) => col ? `<span style="color:${col}">${escapeHtml(txt)}</span>` : escapeHtml(txt);
+  // Phials, from mhgu-weapon-trees. The status ones are the colours already used for
+  // Poison, Paralysis and Exhaust elsewhere in both apps, which trace back to the game's
+  // own coating icons; Dragon is the element colour. Impact, Power and Element are the
+  // Weapon Trees author's own choices — no phial art has been found in the dump to sample.
+  const PHIAL_COL = {
+    Impact: "#b9c2cc", Power: "#de4c5a", Element: "#7fd4c4", Dragon: "#b48aff",
+    Poison: "#c6a3ce", Paralysis: "#f8cf63", Exhaust: "#9cbafe",
+  };
+  // A phial is a type, and for the status ones a value too: "Dragon 18", "Power".
+  // Only the type is coloured — the number is a quantity, not a kind.
+  function phialHtml(p) {
+    const m = /^(\D+?)\s*(\d+)?$/.exec(String(p || "").trim());
+    const type = m ? m[1].trim() : String(p || ""), value = m && m[2] ? m[2] : "";
+    return tint(PHIAL_COL[type] || "", type) + (value ? ` <span class="phial-val">${escapeHtml(value)}</span>` : "");
+  }
   // Colours sampled from the game's own coating icons, which is why they agree with the
   // status colours elsewhere — Poison purple, Paralysis yellow, Sleep pale blue.
   const COATINGS = {
@@ -1657,7 +1672,7 @@
     const rowsHtml = [];
     if (x.notes) rowsHtml.push(rawRow("Notes", notePills(x.notes)));
     if (x.shell) rowsHtml.push(rawRow("Shot Level", tint(patternCol(x.shell), x.shell)));
-    if (x.phial) rowsHtml.push(row("Phial", x.phial));
+    if (x.phial) rowsHtml.push(rawRow("Phial", phialHtml(x.phial)));
     if (x.arc) rowsHtml.push(row("Arc shot", x.arc));
     if (x.kinsect) rowsHtml.push(row("Kinsect", `${x.kinsect.name} (${x.kinsect.type}) P${x.kinsect.power}/W${x.kinsect.weight}/S${x.kinsect.speed}`));
     if (x.stats) rowsHtml.push(row("Reload / Recoil / Dev", `${x.stats.reload} / ${x.stats.recoil} / ${x.stats.deviation}`));
