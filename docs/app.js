@@ -1620,6 +1620,28 @@
       <div class="detail-note song-note">Seconds are the base effect, then the same with Horn Maestro
         in brackets; +n is what an encore adds.</div>`;
   }
+  // Bow colour, taken from mhgu-weapon-trees so the two apps read alike.
+  //
+  // Shots follow MHFU Look Up's rule: one channel pinned per pattern, the other two
+  // running 200 -> 88 as the charge level rises, so a Lv5 reads far deeper than a Lv1.
+  const SHOT_PIN = { Rapid: [0, 0, 1], Spread: [0, 1, 0], Pierce: [1, 0, 0], Heavy: [1, 0, 1] };
+  function shotCol(s) {
+    const m = /^([A-Za-z]+)(?:\s*Lv\s*(\d+))?/.exec(String(s || ""));
+    const pin = m && SHOT_PIN[m[1]];
+    if (!pin) return "";
+    const t = (Math.max(1, Math.min(5, Number(m[2]) || 3)) - 1) / 4;
+    const off = Math.round(200 + (88 - 200) * t);
+    return `rgb(${pin.map(p => (p ? 255 : off)).join(",")})`;
+  }
+  // Colours sampled from the game's own coating icons, which is why they agree with the
+  // status colours elsewhere — Poison purple, Paralysis yellow, Sleep pale blue.
+  const COATINGS = {
+    "Power Coating": ["red", "#de4c5a"], "Power Coating 2": ["red", "#de4c5a"],
+    "Close Range Coating": ["white", "#f7f3f6"], "Poison Coating": ["purple", "#c6a3ce"],
+    "Paralysis Coating": ["yellow", "#f8cf63"], "Sleep Coating": ["light-blue", "#9cdef8"],
+    "Exhaust Coating": ["blue", "#9cbafe"], "Blast Coating": ["light-green", "#b5d772"],
+    "Element Coating": ["pink", "#f8869c"], "Element Coating 2": ["pink", "#f8869c"],
+  };
   function renderExtras(x) {
     if (!x) return "";
     let h = '<div class="detail-section-title">Details (final form)</div>';
@@ -1631,8 +1653,24 @@
     if (x.kinsect) rowsHtml.push(row("Kinsect", `${x.kinsect.name} (${x.kinsect.type}) P${x.kinsect.power}/W${x.kinsect.weight}/S${x.kinsect.speed}`));
     if (x.stats) rowsHtml.push(row("Reload / Recoil / Dev", `${x.stats.reload} / ${x.stats.recoil} / ${x.stats.deviation}`));
     let extraBlocks = "";
-    if (x.charges) extraBlocks += `<div class="detail-section-title">Charges</div><div class="chip-list">${x.charges.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join("")}</div>`;
-    if (x.coatings) extraBlocks += `<div class="detail-section-title">Coatings</div><div class="chip-list">${x.coatings.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join("")}</div>`;
+    // Charges are an ordered set, so they are numbered: charge 1 is the one you fire
+    // from a standing start. A trailing "!" marks a charge only Load Up grants.
+    if (x.charges) extraBlocks += `<div class="detail-section-title">Charges</div>
+      <ol class="charge-list">${x.charges.map(raw => {
+        const loadUp = /!$/.test(raw), shot = String(raw).replace(/!$/, "");
+        const col = shotCol(shot);
+        return `<li><span class="charge-shot"${col ? ` style="color:${col}"` : ""}>${
+          shot ? escapeHtml(shot) : "<span class=\"charge-unknown\">not recorded</span>"
+        }</span>${loadUp ? '<span class="lu-tag">Load Up</span>' : ""}</li>`;
+      }).join("")}</ol>`;
+    if (x.coatings) extraBlocks += `<div class="detail-section-title">Coatings</div><div class="chip-list">${
+      x.coatings.map(c => {
+        const v = COATINGS[c];
+        const label = c.replace(/\s*Coating\s*/, " ").trim() || c;   // "Power Coating 2" -> "Power 2"
+        return `<span class="chip coat"${v ? ` style="color:${v[1]};border-color:${v[1]}55"` : ""}>${
+          v ? `<img src="assets/coatings/${v[0]}.webp" alt="">` : ""   // 180 bytes; lazy only defers them out of sight
+        }${escapeHtml(label)}</span>`;
+      }).join("")}</div>`;
     if (x.ammo) {
       const rows = Object.entries(x.ammo).map(([n, caps]) => `<tr><td>${escapeHtml(n)}</td><td>${caps.map(v => v || "–").join(" / ")}</td></tr>`).join("");
       extraBlocks += `<div class="detail-section-title">Ammo</div><table class="lvl-table"><tbody>${rows}</tbody></table>`;

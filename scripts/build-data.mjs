@@ -231,7 +231,11 @@ function classExtras(slug, l) {
       break;
     case 'bow':
       if (l.arcShot) x.arc = l.arcShot;
-      if (Array.isArray(l.charges)) x.charges = l.charges.map(c => c.shot + (c.requiresLoadUp ? '!' : ''));
+      // 18 charges across two bow trees are {level:4, shot:null, requiresLoadUp:true} — a
+      // fourth charge the bow only gains with Load Up, whose type the source never records.
+      // Without the guard those stringified to the literal "null!".
+      if (Array.isArray(l.charges))
+        x.charges = l.charges.map(c => (c.shot || '') + (c.requiresLoadUp ? '!' : ''));
       if (Array.isArray(l.coatings)) x.coatings = l.coatings.filter(c => c.usable).map(c => c.name);
       break;
     case 'light_bowgun':

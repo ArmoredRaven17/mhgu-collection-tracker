@@ -463,6 +463,16 @@ kbd{display:inline-block;background:var(--bg2);border:1px solid var(--line);
   .kb-list{grid-template-columns:1fr;gap:2px}
   .kb-list dd{margin-bottom:8px}
 }
+/* Bow charges and coatings. */
+.charge-list{list-style:decimal;margin:4px 0 0;padding-left:22px;font-size:12.5px}
+.charge-list li{line-height:1.7;padding-left:2px}
+.charge-shot{font-weight:600}
+.charge-unknown{font-weight:400;opacity:.45;font-style:italic}
+.lu-tag{margin-left:6px;font-size:10px;opacity:.6;border:1px solid var(--line);
+  border-radius:4px;padding:0 4px;white-space:nowrap}
+.chip.coat{display:inline-flex;align-items:center;gap:4px}
+.chip.coat img{width:15px;height:15px;flex:0 0 auto}
+
 /* Hunting horn songs. The note colours are the game's own eight, with Blue the darker
    of the two blues and Sky Blue the lighter. */
 :root{
