@@ -1656,7 +1656,7 @@
     let h = '<div class="detail-section-title">Details (final form)</div>';
     const rowsHtml = [];
     if (x.notes) rowsHtml.push(rawRow("Notes", notePills(x.notes)));
-    if (x.shell) rowsHtml.push(rawRow("Shelling", tint(patternCol(x.shell), x.shell)));
+    if (x.shell) rowsHtml.push(rawRow("Shot Level", tint(patternCol(x.shell), x.shell)));
     if (x.phial) rowsHtml.push(row("Phial", x.phial));
     if (x.arc) rowsHtml.push(row("Arc shot", x.arc));
     if (x.kinsect) rowsHtml.push(row("Kinsect", `${x.kinsect.name} (${x.kinsect.type}) P${x.kinsect.power}/W${x.kinsect.weight}/S${x.kinsect.speed}`));
