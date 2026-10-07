@@ -745,8 +745,11 @@
         const mx = maxLevelOf(it.cat, it.id);
         if (mx > 0 && ownedLevel(it.cat, it.id) < mx) return false;
       }
-      if (filters.owned === "partial") {               // Owned but not yet at max level
-        if (!has) return false;
+      // Anything that is not fully upgraded, which includes what you do not own yet —
+      // a piece you have never made is further from maxed than one sitting at LV5.
+      // Only a piece you own at its top level is excluded, and a piece with no levels
+      // at all counts as finished the moment you own it.
+      if (filters.owned === "partial" && has) {
         const mx = maxLevelOf(it.cat, it.id);
         if (mx <= 0 || ownedLevel(it.cat, it.id) >= mx) return false;
       }
