@@ -1623,19 +1623,25 @@
       <div class="detail-note song-note">Seconds are the base effect, then the same with Horn Maestro
         in brackets; +n is what an encore adds.</div>`;
   }
-  // Bow colour, taken from mhgu-weapon-trees so the two apps read alike.
-  //
-  // Shots follow MHFU Look Up's rule: one channel pinned per pattern, the other two
-  // running 200 -> 88 as the charge level rises, so a Lv5 reads far deeper than a Lv1.
-  const SHOT_PIN = { Rapid: [0, 0, 1], Spread: [0, 1, 0], Pierce: [1, 0, 0], Heavy: [1, 0, 1] };
-  function shotCol(s) {
+  // Levelled patterns — bow charges and gunlance shelling — are coloured the same way,
+  // taken from mhgu-weapon-trees so the two apps read alike. MHFU Look Up's rule: the
+  // type pins one channel, the level deepens the other two from 200 down to 88, so a Lv5
+  // reads far darker than a Lv1. Wide is MHGU's name for the AoE shell MHFU calls Spread,
+  // so it takes that same green. The two vocabularies never overlap, which is why one
+  // table serves both.
+  const PATTERN_PIN = {
+    Rapid: [0, 0, 1], Spread: [0, 1, 0], Pierce: [1, 0, 0], Heavy: [1, 0, 1],   // bow charges
+    Normal: [0, 0, 1], Long: [1, 0, 0], Wide: [0, 1, 0],                        // gunlance shells
+  };
+  function patternCol(s) {
     const m = /^([A-Za-z]+)(?:\s*Lv\s*(\d+))?/.exec(String(s || ""));
-    const pin = m && SHOT_PIN[m[1]];
+    const pin = m && PATTERN_PIN[m[1]];
     if (!pin) return "";
     const t = (Math.max(1, Math.min(5, Number(m[2]) || 3)) - 1) / 4;
     const off = Math.round(200 + (88 - 200) * t);
     return `rgb(${pin.map(p => (p ? 255 : off)).join(",")})`;
   }
+  const tint = (col, txt) => col ? `<span style="color:${col}">${escapeHtml(txt)}</span>` : escapeHtml(txt);
   // Colours sampled from the game's own coating icons, which is why they agree with the
   // status colours elsewhere — Poison purple, Paralysis yellow, Sleep pale blue.
   const COATINGS = {
@@ -1650,7 +1656,7 @@
     let h = '<div class="detail-section-title">Details (final form)</div>';
     const rowsHtml = [];
     if (x.notes) rowsHtml.push(rawRow("Notes", notePills(x.notes)));
-    if (x.shell) rowsHtml.push(row("Shelling", x.shell));
+    if (x.shell) rowsHtml.push(rawRow("Shelling", tint(patternCol(x.shell), x.shell)));
     if (x.phial) rowsHtml.push(row("Phial", x.phial));
     if (x.arc) rowsHtml.push(row("Arc shot", x.arc));
     if (x.kinsect) rowsHtml.push(row("Kinsect", `${x.kinsect.name} (${x.kinsect.type}) P${x.kinsect.power}/W${x.kinsect.weight}/S${x.kinsect.speed}`));
@@ -1661,7 +1667,7 @@
     if (x.charges) extraBlocks += `<div class="detail-section-title">Charges</div>
       <ol class="charge-list">${x.charges.map(raw => {
         const loadUp = /!$/.test(raw), shot = String(raw).replace(/!$/, "");
-        const col = shotCol(shot);
+        const col = patternCol(shot);
         return `<li><span class="charge-shot"${col ? ` style="color:${col}"` : ""}>${
           escapeHtml(shot)}</span>${loadUp ? '<span class="lu-tag">Load Up</span>' : ""}</li>`;
       }).join("")}</ol>`;
