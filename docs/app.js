@@ -1642,10 +1642,20 @@
     return `rgb(${pin.map(p => (p ? 255 : off)).join(",")})`;
   }
   const tint = (col, txt) => col ? `<span style="color:${col}">${escapeHtml(txt)}</span>` : escapeHtml(txt);
-  // Phials, from mhgu-weapon-trees. The status ones are the colours already used for
-  // Poison, Paralysis and Exhaust elsewhere in both apps, which trace back to the game's
-  // own coating icons; Dragon is the element colour. Impact, Power and Element are the
-  // Weapon Trees author's own choices — no phial art has been found in the dump to sample.
+  // Phials, from mhgu-weapon-trees. Three are grounded and four are choices, which is
+  // worth keeping straight: Poison and Paralysis reuse the status colours sampled from
+  // the game's coating art, Dragon is the element colour, and Impact, Power, Element and
+  // Exhaust are the Weapon Trees author's own. (Exhaust looks like the sampled Sleep
+  // #9cdef8 but is 36.5 away from it in RGB — close enough to pass for grounded, which
+  // is exactly why it is written down here.)
+  //
+  // The ROM does hold a phial table, but it is the burst VFX palette rather than UI
+  // colour — the game never tints phial text — and it is Switch Axe only, so it has
+  // nothing for Impact and stores no colour for Dragon. Its Poison is blue-violet
+  // #6428ff, which contradicts the coating purple used for Poison everywhere else here.
+  // Decoded from mhgu-armor-viewer (effects/w08-shells.json, each entry a little-endian
+  // u32 of R G B A) should it ever be wanted: Power #ff1400, Element #29c774,
+  // Paralysis #e8bb00, Exhaust #366bff, Poison #6428ff.
   const PHIAL_COL = {
     Impact: "#b9c2cc", Power: "#de4c5a", Element: "#7fd4c4", Dragon: "#b48aff",
     Poison: "#c6a3ce", Paralysis: "#f8cf63", Exhaust: "#9cbafe",
