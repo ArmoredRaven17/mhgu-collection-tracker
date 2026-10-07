@@ -205,10 +205,23 @@ body{
 .cat-stat.target b{color:#ffd479}
 /* The toggle is the one thing that must never be squeezed or pushed off. */
 .view-toggle{flex:0 0 auto}
-/* Below this the column cannot hold name, chips and buttons at once, so the chips go
-   rather than slide under the toggle. Measured: buttons 205px, chips ~200px, a long
-   category name and its count ~200px, plus gaps. */
-@container (max-width:620px){ .cat-stats{display:none} }
+/* As the column narrows the chips drop one at a time rather than all at once, so a
+   wide details panel costs the least useful chip first and still leaves the one that
+   matters. Measured against the column: buttons 205px, each chip ~66px, a long category
+   name with its count ~150px, plus gaps. Least useful first — "on checklist" is also on
+   the sidebar filter, "to go" is the fraction's complement, "maxed" is the only one that
+   says something the header does not. */
+/* Thresholds are content-box widths — what a container query measures — so they are
+   the column's own width less its 32px of padding.
+   The labels go first and the numbers stay: three bare counts take about 110px where
+   the labelled chips take 200, and the tooltip still says which is which. Only after
+   that do whole chips drop, least useful first — "on checklist" is also a sidebar
+   filter, "to go" is the fraction's complement, "maxed" says something nothing else
+   in the header does. */
+@container (max-width:600px){ .cat-stat span{display:none} .cat-stat{padding:2px 6px} }
+@container (max-width:500px){ .cat-stat.target{display:none} }
+@container (max-width:460px){ .cat-stat.left{display:none} }
+@container (max-width:420px){ .cat-stats{display:none} }
 .progress-bar{height:7px;background:#ffffff17;border-radius:4px;margin-top:8px;overflow:hidden}
 .progress-fill{height:100%;width:0;background:var(--accent-hover);transition:width .2s}
 

@@ -2290,7 +2290,7 @@
       `<button type="button" class="cat-stat ${cls}${n ? "" : " zero"}${
         filters.owned === filter ? " active" : ""}" data-filter="${filter}"
         aria-pressed="${filters.owned === filter}"
-        title="${filters.owned === filter ? "Showing only these — click to clear" : "Show only these"}"
+        title="${fmtNum(n)} ${label} — ${filters.owned === filter ? "showing only these, click to clear" : "click to show only these"}"
         ><b>${fmtNum(n)}</b><span>${label}</span></button>`;
     // No "owned" chip: the fraction beside the title already says that, and four chips
     // wrapped onto a second line and made the header taller.
