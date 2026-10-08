@@ -471,6 +471,12 @@ kbd{display:inline-block;background:var(--bg2);border:1px solid var(--line);
 }
 .phial-val{opacity:.75;font-variant-numeric:tabular-nums}
 
+/* Armor skills. Name left, points right, so the signs line up down the column. */
+.skill-table td{padding:3px 0}
+.skill-table td.num{text-align:right;width:1%;white-space:nowrap;font-variant-numeric:tabular-nums}
+.skill-pts.up{color:#7fdc7f}
+.skill-pts.down{color:#ff9a9a}
+
 /* Bow charges and coatings. */
 .charge-list{list-style:decimal;margin:4px 0 0;padding-left:22px;font-size:12.5px}
 .charge-list li{line-height:1.7;padding-left:2px}

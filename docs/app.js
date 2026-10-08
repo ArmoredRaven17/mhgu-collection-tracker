@@ -1744,8 +1744,16 @@
     if (!s) return '<div class="detail-note">Stats unavailable for this armor piece.</div>';
     let h = `${row("Defense", `${s.def[0]} – ${s.def[1]}`)}${row("Deco slots", s.slots || 0)}`;
     h += resGridHtml(s.res);
+    // A list rather than chips: up to four per piece, each a name against a signed
+    // number, which reads far better down a column than strung across a line. A 0 is
+    // left plain — Torso Up carries no points but is not nothing.
     if (s.sk && s.sk.length)
-      h += `<div class="detail-section-title">Skills</div><div class="chip-list">${s.sk.map(k => `<span class="chip">${escapeHtml(k[0])} ${k[1] > 0 ? "+" + k[1] : k[1]}</span>`).join("")}</div>`;
+      h += `<div class="detail-section-title">Skills</div>
+        <table class="lvl-table skill-table"><tbody>${s.sk.map(k => `<tr>
+          <td>${escapeHtml(k[0])}</td>
+          <td class="num skill-pts${k[1] > 0 ? " up" : k[1] < 0 ? " down" : ""}">${
+            k[1] > 0 ? "+" + k[1] : k[1]}</td>
+        </tr>`).join("")}</tbody></table>`;
     // Per-level defense, presented like a weapon's upgrade table. Only skills and
     // resistances stay flat — armor upgrades raise defense and nothing else.
     if (s.lv && s.lv.length > 1) {
