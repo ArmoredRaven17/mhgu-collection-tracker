@@ -8,8 +8,10 @@ extracted from the ROM for mhgu-armor-viewer, which keeps them as one 384x24 str
 sixteen 24x24 cells indexed by the game's own weapon enum — w00 Great Sword through w14
 Charge Blade, with cell 5 empty where the Medium Bowgun was removed.
 
-They are greyscale masks, so the tracker tints them per completion tier the same way it
-tints the rest of the sidebar; only the alpha is kept here and the colour comes from CSS.
+They are greyscale, and the game colours its own class icons by multiplying that shading
+by a colour rather than replacing it. The tracker does the same: these are written out
+with their shading intact and CSS multiplies the completion-tier colour through them, so
+the dark outline stays dark instead of thinning into a faded edge.
 """
 import os, struct, sys, zlib
 
@@ -81,19 +83,17 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     for idx, slug in CELLS.items():
         x0 = idx * CELL
-        # White, with the cell's own alpha shaped by its luminance: the glyph is a mask,
-        # and flattening the grey shading into alpha lets CSS tint it any colour cleanly.
+        # Copied as-is: the greyscale is the shading CSS multiplies the tier colour
+        # through, and the alpha is the shape it is clipped to. Flattening one into the
+        # other would cost the outline, which is the darkest part of the glyph.
         cell = bytearray(CELL * CELL * 4)
         ink = 0
         for y in range(CELL):
             for x in range(CELL):
                 s = ((y) * w + x0 + x) * 4
-                r, g, b, a = px[s], px[s + 1], px[s + 2], px[s + 3]
-                lum = (r * 299 + g * 587 + b * 114) // 1000
-                out = a * lum // 255
                 d = (y * CELL + x) * 4
-                cell[d:d + 4] = bytes((255, 255, 255, out))
-                if out > 32:
+                cell[d:d + 4] = px[s:s + 4]
+                if px[s + 3] > 32:
                     ink += 1
         if ink < 10:
             sys.exit(f'cell {idx} ({slug}) looks empty — has the strip changed?')

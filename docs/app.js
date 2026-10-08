@@ -612,7 +612,8 @@
       row.querySelector(".cat-frac").textContent = `${n}/${d}`;
       row.classList.toggle("complete", n === d && d > 0);
       const img = row.querySelector("img"); if (img) img.src = iconPath(c.iconSlug, tier);
-      const glyph = row.querySelector(".cat-glyph"); if (glyph) glyph.style.background = RARITY_TEXT[tier];
+      // backgroundColor, not background: the shorthand would wipe the glyph image out.
+      const glyph = row.querySelector(".cat-glyph"); if (glyph) glyph.style.backgroundColor = RARITY_TEXT[tier];
       const nameEl = row.querySelector(".cat-name"); if (nameEl) nameEl.style.color = RARITY_TEXT[tier];
     }
     // current category header bar
@@ -642,11 +643,12 @@
       for (const c of g.cats) {
         const row = document.createElement("div");
         row.className = "cat-row"; row.dataset.cat = catId(c);
-        // Weapons wear the Guild Card's own glyph, which is a mask, so the tier colour
-        // paints it rather than swapping in a differently-coloured file. Armor and Palico
-        // have no Guild Card glyph and keep the painted icons.
+        // Weapons wear the Guild Card's own glyph. One file does every tier: the CSS
+        // multiplies the tier colour through the glyph's shading and clips it to the
+        // same image's alpha, which is how the game colours its own class icons. Armor
+        // and Palico have no Guild Card glyph and keep the painted icons.
         row.innerHTML = (c.kind === "w"
-          ? `<span class="cat-glyph" style="-webkit-mask-image:url(assets/weapon-icons/${c.key}.png);mask-image:url(assets/weapon-icons/${c.key}.png)"></span>`
+          ? `<span class="cat-glyph" style="--glyph:url(assets/weapon-icons/${c.key}.png)"></span>`
           : `<img src="${iconPath(c.iconSlug, 1)}" alt="">`)
           + `<span class="cat-name">${escapeHtml(c.label)}</span>
           <span class="cat-frac"></span>`;

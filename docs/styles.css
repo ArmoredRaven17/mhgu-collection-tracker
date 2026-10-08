@@ -175,10 +175,15 @@ body{
 .cat-row:hover{background:#ffffff12}
 .cat-row.active{background:color-mix(in srgb,var(--accent) 55%,transparent)}
 .cat-row img{width:20px;height:20px;object-fit:contain;flex-shrink:0}
-/* The Guild Card glyph, painted by the completion tier. 24px art at 20px is a fractional
-   ratio, so it is smoothed rather than hinted to pixels — these have soft edges already,
-   unlike the note sprite. */
+/* The Guild Card glyph, coloured by the completion tier the way the game colours its own
+   class icons: the tier colour multiplied through the glyph's grey shading, so the dark
+   outline stays dark. The same image masks the result to the glyph's shape, since
+   multiply alone would paint the colour across the whole box. 24px art at 20px is a
+   fractional ratio, so it is smoothed rather than hinted to pixels. */
 .cat-glyph{width:20px;height:20px;flex-shrink:0;display:block;
+  background-image:var(--glyph);background-size:contain;background-repeat:no-repeat;
+  background-position:center;background-blend-mode:multiply;
+  -webkit-mask-image:var(--glyph);mask-image:var(--glyph);
   -webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
   -webkit-mask-position:center;mask-position:center;transition:background-color .25s}
 .cat-row .cat-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .25s;padding-left:2px}
